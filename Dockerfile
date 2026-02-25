@@ -53,7 +53,7 @@ USER app
 WORKDIR /srv
 
 RUN \
- for f in /srv/preset/*.txt.loaded; do [ -f "$f" ] && mv -vf "$f" "${f%.loaded}"; done && \
+ for f in /srv/preset/*.txt.loaded; do [ -f "$f" ] && mv -vf "$f" "${f%.loaded}" || :; done && \
  /srv/tg-spam --convert=only --files.dynamic=/srv/preset --files.samples=/srv/preset && \
  sh -c 'for f in /srv/preset/*.txt.loaded; do mv -vf "$f" "${f%.loaded}"; done' && \
  echo "preset files converted" && \
