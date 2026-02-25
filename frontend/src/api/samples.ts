@@ -1,24 +1,28 @@
 import apiClient from './client';
 
+interface SamplesResponse {
+  spam: string[];
+  ham: string[];
+  spam_count: number;
+  ham_count: number;
+}
+
 export const samplesApi = {
-  getSpam: (gid: string) =>
-    apiClient.get<string[]>('/samples/spam', { params: { gid } }),
+  getAll: () =>
+    apiClient.get<SamplesResponse>('/samples/'),
 
-  getHam: (gid: string) =>
-    apiClient.get<string[]>('/samples/ham', { params: { gid } }),
+  addSpam: (message: string) =>
+    apiClient.post('/samples/spam', { msg: message }),
 
-  addSpam: (gid: string, message: string) =>
-    apiClient.post('/samples/spam', { gid, message }),
+  addHam: (message: string) =>
+    apiClient.post('/samples/ham', { msg: message }),
 
-  addHam: (gid: string, message: string) =>
-    apiClient.post('/samples/ham', { gid, message }),
+  deleteSpam: (message: string) =>
+    apiClient.delete('/samples/spam', { data: { msg: message } }),
 
-  deleteSpam: (gid: string, message: string) =>
-    apiClient.delete('/samples/spam', { data: { gid, message } }),
+  deleteHam: (message: string) =>
+    apiClient.delete('/samples/ham', { data: { msg: message } }),
 
-  deleteHam: (gid: string, message: string) =>
-    apiClient.delete('/samples/ham', { data: { gid, message } }),
-
-  reload: (gid: string) =>
-    apiClient.put('/samples/reload', { gid }),
+  reload: () =>
+    apiClient.put('/samples/reload'),
 };

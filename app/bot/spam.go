@@ -295,6 +295,24 @@ func (s *SpamFilter) DynamicSamples() (spam, ham []string, err error) {
 	return spam, ham, nil
 }
 
+// AllSamples returns all spam and ham samples including both preset and user-added
+func (s *SpamFilter) AllSamples() (spam, ham []string, err error) {
+	errs := new(multierror.Error)
+
+	if spam, err = s.params.SamplesStore.Read(context.TODO(), storage.SampleTypeSpam, storage.SampleOriginAny); err != nil {
+		errs = multierror.Append(errs, fmt.Errorf("failed to read all spam samples: %w", err))
+	}
+
+	if ham, err = s.params.SamplesStore.Read(context.TODO(), storage.SampleTypeHam, storage.SampleOriginAny); err != nil {
+		errs = multierror.Append(errs, fmt.Errorf("failed to read all ham samples: %w", err))
+	}
+
+	if err := errs.ErrorOrNil(); err != nil {
+		return spam, ham, fmt.Errorf("failed to read all samples: %w", err)
+	}
+	return spam, ham, nil
+}
+
 // RemoveDynamicSpamSample removes a sample from the spam dynamic samples file and reloads samples after this
 func (s *SpamFilter) RemoveDynamicSpamSample(sample string) error {
 	cleanMsg := strings.ReplaceAll(sample, "\n", " ")

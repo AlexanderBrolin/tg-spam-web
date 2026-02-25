@@ -20,8 +20,8 @@ export default function Channels() {
       setLoading(true);
       try {
         const [chResp, botResp] = await Promise.all([channelsApi.list(), botsApi.list()]);
-        setChannels(chResp.data);
-        setBots(botResp.data);
+        setChannels(chResp.data || []);
+        setBots(botResp.data || []);
       } catch {
         // handle error
       } finally {
@@ -43,7 +43,7 @@ export default function Channels() {
         active: true,
       });
       const response = await channelsApi.list();
-      setChannels(response.data);
+      setChannels(response.data || []);
       fetchChannels();
       setForm({ gid: '', telegram_id: '', name: '', username: '', bot_id: '0' });
       setShowAdd(false);
@@ -52,10 +52,10 @@ export default function Channels() {
     }
   };
 
-  const handleDelete = async (gid: string) => {
+  const handleDelete = async (id: number, gid: string) => {
     if (!confirm('Delete this channel and all its settings?')) return;
     try {
-      await channelsApi.delete(gid);
+      await channelsApi.delete(id);
       setChannels((prev) => prev.filter((c) => c.gid !== gid));
       fetchChannels();
     } catch {
@@ -193,7 +193,7 @@ export default function Channels() {
                   <Settings size={18} />
                 </button>
                 <button
-                  onClick={() => handleDelete(channel.gid)}
+                  onClick={() => handleDelete(channel.id, channel.gid)}
                   className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="Delete"
                 >

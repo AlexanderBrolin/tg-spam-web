@@ -97,10 +97,15 @@ export interface ApprovedUser {
 
 export interface DashboardStats {
   total_spam: number;
-  total_approved: number;
-  active_channels: number;
-  spam_by_type: Record<string, number>;
-  spam_timeline: { date: string; count: number }[];
+  today_spam: number;
+  week_spam: number;
+  added_to_samples: number;
+  approved_users: number;
+  by_detector: Record<string, number>;
+  by_day: Record<string, number>;
+  uptime_seconds: number;
+  version: string;
+  database_type: string;
 }
 
 export interface LoginRequest {
@@ -115,6 +120,7 @@ export interface TokenPair {
 }
 
 export interface DictionaryEntry {
+  id: number;
   type: 'stop_phrase' | 'ignored_word';
   data: string;
 }

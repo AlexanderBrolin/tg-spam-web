@@ -20,6 +20,9 @@ func (s *Server) listChannelsHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusInternalServerError, "failed to list channels")
 		return
 	}
+	if channels == nil {
+		channels = []storage.ChannelInfo{}
+	}
 	writeJSONResponse(w, http.StatusOK, channels)
 }
 

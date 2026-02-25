@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ShieldAlert, Plus } from 'lucide-react';
+import { ShieldAlert, Plus, Radio } from 'lucide-react';
 import { spamApi } from '@/api/spam';
 import { useChannelStore } from '@/store/channelStore';
 import type { DetectedSpamEntry } from '@/types';
@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 
 export default function DetectedSpam() {
   const [entries, setEntries] = useState<DetectedSpamEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const selectedGid = useChannelStore((s) => s.selectedGid);
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export default function DetectedSpam() {
       setLoading(true);
       try {
         const response = await spamApi.getDetected(selectedGid);
-        setEntries(response.data);
+        setEntries(response.data.entries || []);
       } catch {
         // handle error
       } finally {
@@ -26,9 +26,9 @@ export default function DetectedSpam() {
     fetchData();
   }, [selectedGid]);
 
-  const handleAddToSamples = async (id: number) => {
+  const handleAddToSamples = async (id: number, text: string) => {
     try {
-      await spamApi.addToSamples(id);
+      await spamApi.addToSamples(id, text);
       setEntries((prev) =>
         prev.map((e) => (e.id === id ? { ...e, added: true } : e))
       );
@@ -36,6 +36,15 @@ export default function DetectedSpam() {
       // handle error
     }
   };
+
+  if (!selectedGid) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+        <Radio size={48} className="mb-3 opacity-30" />
+        <p className="text-sm">Select a channel in the sidebar to view detected spam</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -93,7 +102,7 @@ export default function DetectedSpam() {
                     <span className="text-xs text-green-600">Added</span>
                   ) : (
                     <button
-                      onClick={() => handleAddToSamples(entry.id)}
+                      onClick={() => handleAddToSamples(entry.id, entry.text)}
                       className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
                     >
                       <Plus size={14} />

@@ -1,13 +1,19 @@
 import apiClient from './client';
 import type { DictionaryEntry } from '@/types';
 
+interface DictionaryResponse {
+  stop_phrases: DictionaryEntry[];
+  ignored_words: DictionaryEntry[];
+  stats: { stop_phrases: number; ignored_words: number } | null;
+}
+
 export const dictionaryApi = {
-  get: (gid: string) =>
-    apiClient.get<DictionaryEntry[]>('/dictionary', { params: { gid } }),
+  get: () =>
+    apiClient.get<DictionaryResponse>('/dictionary/'),
 
-  add: (gid: string, type: string, data: string) =>
-    apiClient.post('/dictionary', { gid, type, data }),
+  add: (type: string, data: string) =>
+    apiClient.post('/dictionary/', { type, data }),
 
-  remove: (gid: string, type: string, data: string) =>
-    apiClient.delete('/dictionary', { data: { gid, type, data } }),
+  remove: (id: number) =>
+    apiClient.delete('/dictionary/', { data: { id } }),
 };

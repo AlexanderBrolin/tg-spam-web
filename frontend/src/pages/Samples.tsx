@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, BookOpen } from 'lucide-react';
 import { samplesApi } from '@/api/samples';
-import { useChannelStore } from '@/store/channelStore';
 
 export default function Samples() {
   const [spamSamples, setSpamSamples] = useState<string[]>([]);
@@ -9,37 +8,33 @@ export default function Samples() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'spam' | 'ham'>('spam');
   const [newSample, setNewSample] = useState('');
-  const selectedGid = useChannelStore((s) => s.selectedGid);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const response = await samplesApi.getAll();
+      setSpamSamples(response.data.spam || []);
+      setHamSamples(response.data.ham || []);
+    } catch {
+      // handle error
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!selectedGid) return;
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [spam, ham] = await Promise.all([
-          samplesApi.getSpam(selectedGid),
-          samplesApi.getHam(selectedGid),
-        ]);
-        setSpamSamples(spam.data);
-        setHamSamples(ham.data);
-      } catch {
-        // handle error
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
-  }, [selectedGid]);
+  }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedGid || !newSample.trim()) return;
+    if (!newSample.trim()) return;
     try {
       if (activeTab === 'spam') {
-        await samplesApi.addSpam(selectedGid, newSample);
+        await samplesApi.addSpam(newSample);
         setSpamSamples((prev) => [newSample, ...prev]);
       } else {
-        await samplesApi.addHam(selectedGid, newSample);
+        await samplesApi.addHam(newSample);
         setHamSamples((prev) => [newSample, ...prev]);
       }
       setNewSample('');
@@ -49,14 +44,13 @@ export default function Samples() {
   };
 
   const handleDelete = async (message: string) => {
-    if (!selectedGid) return;
     if (!confirm('Delete this sample?')) return;
     try {
       if (activeTab === 'spam') {
-        await samplesApi.deleteSpam(selectedGid, message);
+        await samplesApi.deleteSpam(message);
         setSpamSamples((prev) => prev.filter((s) => s !== message));
       } else {
-        await samplesApi.deleteHam(selectedGid, message);
+        await samplesApi.deleteHam(message);
         setHamSamples((prev) => prev.filter((s) => s !== message));
       }
     } catch {
@@ -76,7 +70,12 @@ export default function Samples() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Samples</h2>
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Samples</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Training data for the spam classifier. Spam samples teach the bot to recognize spam, ham samples — legitimate messages.
+        </p>
+      </div>
 
       {/* tabs */}
       <div className="flex gap-2">

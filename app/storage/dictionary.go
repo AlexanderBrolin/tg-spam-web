@@ -341,8 +341,8 @@ func (t DictionaryType) Validate() error {
 
 // DictionaryStats returns statistics about dictionary entries
 type DictionaryStats struct {
-	TotalStopPhrases  int `db:"stop_phrases_count"`
-	TotalIgnoredWords int `db:"ignored_words_count"`
+	TotalStopPhrases  int `db:"stop_phrases_count" json:"stop_phrases"`
+	TotalIgnoredWords int `db:"ignored_words_count" json:"ignored_words"`
 }
 
 // String returns a string representation of the stats

@@ -1,55 +1,58 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, BookText } from 'lucide-react';
 import { dictionaryApi } from '@/api/dictionary';
-import { useChannelStore } from '@/store/channelStore';
 import type { DictionaryEntry } from '@/types';
 
 export default function Dictionary() {
-  const [entries, setEntries] = useState<DictionaryEntry[]>([]);
+  const [stopPhrases, setStopPhrases] = useState<DictionaryEntry[]>([]);
+  const [ignoredWords, setIgnoredWords] = useState<DictionaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'stop_phrase' | 'ignored_word'>('stop_phrase');
   const [newEntry, setNewEntry] = useState('');
-  const selectedGid = useChannelStore((s) => s.selectedGid);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const response = await dictionaryApi.get();
+      setStopPhrases(response.data.stop_phrases || []);
+      setIgnoredWords(response.data.ignored_words || []);
+    } catch {
+      // handle error
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!selectedGid) return;
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const response = await dictionaryApi.get(selectedGid);
-        setEntries(response.data);
-      } catch {
-        // handle error
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
-  }, [selectedGid]);
+  }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedGid || !newEntry.trim()) return;
+    if (!newEntry.trim()) return;
     try {
-      await dictionaryApi.add(selectedGid, activeTab, newEntry);
-      setEntries((prev) => [...prev, { type: activeTab, data: newEntry }]);
+      await dictionaryApi.add(activeTab, newEntry);
+      await fetchData();
       setNewEntry('');
     } catch {
       // handle error
     }
   };
 
-  const handleRemove = async (type: string, data: string) => {
-    if (!selectedGid) return;
+  const handleRemove = async (entry: DictionaryEntry) => {
     try {
-      await dictionaryApi.remove(selectedGid, type, data);
-      setEntries((prev) => prev.filter((e) => !(e.type === type && e.data === data)));
+      await dictionaryApi.remove(entry.id);
+      if (entry.type === 'stop_phrase') {
+        setStopPhrases((prev) => prev.filter((e) => e.id !== entry.id));
+      } else {
+        setIgnoredWords((prev) => prev.filter((e) => e.id !== entry.id));
+      }
     } catch {
       // handle error
     }
   };
 
-  const filtered = entries.filter((e) => e.type === activeTab);
+  const filtered = activeTab === 'stop_phrase' ? stopPhrases : ignoredWords;
 
   if (loading) {
     return (
@@ -61,7 +64,12 @@ export default function Dictionary() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Dictionary</h2>
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Dictionary</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Stop phrases trigger spam detection instantly. Ignored words are excluded from classifier analysis (common words, prepositions, etc).
+        </p>
+      </div>
 
       <div className="flex gap-2">
         <button
@@ -72,7 +80,7 @@ export default function Dictionary() {
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          Stop Phrases ({entries.filter((e) => e.type === 'stop_phrase').length})
+          Stop Phrases ({stopPhrases.length})
         </button>
         <button
           onClick={() => setActiveTab('ignored_word')}
@@ -82,7 +90,7 @@ export default function Dictionary() {
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          Ignored Words ({entries.filter((e) => e.type === 'ignored_word').length})
+          Ignored Words ({ignoredWords.length})
         </button>
       </div>
 
@@ -108,11 +116,11 @@ export default function Dictionary() {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="divide-y divide-gray-200">
-          {filtered.map((entry, i) => (
-            <div key={i} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+          {filtered.map((entry) => (
+            <div key={entry.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
               <span className="text-sm text-gray-700">{entry.data}</span>
               <button
-                onClick={() => handleRemove(entry.type, entry.data)}
+                onClick={() => handleRemove(entry)}
                 className="text-red-500 hover:text-red-700 transition-colors"
               >
                 <Trash2 size={16} />

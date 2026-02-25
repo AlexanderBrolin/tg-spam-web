@@ -118,10 +118,14 @@ func buildDetector(s storage.ChannelSettingsInfo) *tgspam.Detector {
 		}
 	}
 
+	if s.CASEnabled {
+		detectorConfig.CasAPI = "https://api.cas.chat"
+	}
+
 	detector := tgspam.NewDetector(detectorConfig)
 
-	// setup per-channel OpenAI if token is provided
-	if s.OpenAIToken != "" {
+	// setup per-channel OpenAI if enabled and token is provided
+	if s.OpenAIEnabled && s.OpenAIToken != "" {
 		config := openai.DefaultConfig(s.OpenAIToken)
 		if s.OpenAIAPIBase != "" {
 			config.BaseURL = s.OpenAIAPIBase
@@ -162,10 +166,6 @@ func buildDetector(s storage.ChannelSettingsInfo) *tgspam.Detector {
 		metaChecks = append(metaChecks, tgspam.GiveawayCheck())
 	}
 	detector.WithMetaChecks(metaChecks...)
-
-	if s.CASEnabled {
-		detectorConfig.CasAPI = "https://api.cas.chat"
-	}
 
 	return detector
 }

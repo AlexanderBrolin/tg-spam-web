@@ -14,7 +14,7 @@ export default function AdminUsers() {
       setLoading(true);
       try {
         const response = await adminUsersApi.list();
-        setUsers(response.data);
+        setUsers(response.data || []);
       } catch {
         // handle error
       } finally {
@@ -29,7 +29,7 @@ export default function AdminUsers() {
     try {
       await adminUsersApi.create(form);
       const response = await adminUsersApi.list();
-      setUsers(response.data);
+      setUsers(response.data || []);
       setForm({ username: '', password: '', role: 'moderator', display_name: '' });
       setShowAdd(false);
     } catch {

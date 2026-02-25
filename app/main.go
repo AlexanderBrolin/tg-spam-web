@@ -623,8 +623,14 @@ func activateServer(ctx context.Context, opts options, sf *bot.SpamFilter, loc *
 			log.Printf("[INFO] initial superadmin user %q created", opts.Auth.AdminUser)
 		}
 
+		approvedUsersStoreV2, apErr := storage.NewApprovedUsers(ctx, db)
+		if apErr != nil {
+			return fmt.Errorf("can't make approved users store for v2, %w", apErr)
+		}
+
 		srv.AuthService = authService
 		srv.AdminUsersStore = adminUsersStore
+		srv.ApprovedUsersStore = approvedUsersStoreV2
 		srv.ChannelsStore = channelsStore
 		srv.ChannelSettingsStore = channelSettingsStore
 		srv.BotsStore = botsStore

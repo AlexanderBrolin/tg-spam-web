@@ -20,7 +20,7 @@ export const useChannelStore = create<ChannelState>((set) => ({
     set({ isLoading: true });
     try {
       const response = await channelsApi.list();
-      const channels = response.data;
+      const channels = response.data || [];
       set((state) => {
         const selectedGid = state.selectedGid && channels.some(c => c.gid === state.selectedGid)
           ? state.selectedGid

@@ -13,6 +13,9 @@ import (
 //
 //		// make and configure a mocked webapi.SpamFilter
 //		mockedSpamFilter := &SpamFilterMock{
+//			AllSamplesFunc: func() ([]string, []string, error) {
+//				panic("mock out the AllSamples method")
+//			},
 //			DynamicSamplesFunc: func() ([]string, []string, error) {
 //				panic("mock out the DynamicSamples method")
 //			},
@@ -38,6 +41,9 @@ import (
 //
 //	}
 type SpamFilterMock struct {
+	// AllSamplesFunc mocks the AllSamples method.
+	AllSamplesFunc func() ([]string, []string, error)
+
 	// DynamicSamplesFunc mocks the DynamicSamples method.
 	DynamicSamplesFunc func() ([]string, []string, error)
 
@@ -58,6 +64,9 @@ type SpamFilterMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// AllSamples holds details about calls to the AllSamples method.
+		AllSamples []struct {
+		}
 		// DynamicSamples holds details about calls to the DynamicSamples method.
 		DynamicSamples []struct {
 		}
@@ -85,12 +94,47 @@ type SpamFilterMock struct {
 			Msg string
 		}
 	}
+	lockAllSamples              sync.RWMutex
 	lockDynamicSamples          sync.RWMutex
 	lockReloadSamples           sync.RWMutex
 	lockRemoveDynamicHamSample  sync.RWMutex
 	lockRemoveDynamicSpamSample sync.RWMutex
 	lockUpdateHam               sync.RWMutex
 	lockUpdateSpam              sync.RWMutex
+}
+
+// AllSamples calls AllSamplesFunc.
+func (mock *SpamFilterMock) AllSamples() ([]string, []string, error) {
+	if mock.AllSamplesFunc == nil {
+		panic("SpamFilterMock.AllSamplesFunc: method is nil but SpamFilter.AllSamples was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockAllSamples.Lock()
+	mock.calls.AllSamples = append(mock.calls.AllSamples, callInfo)
+	mock.lockAllSamples.Unlock()
+	return mock.AllSamplesFunc()
+}
+
+// AllSamplesCalls gets all the calls that were made to AllSamples.
+// Check the length with:
+//
+//	len(mockedSpamFilter.AllSamplesCalls())
+func (mock *SpamFilterMock) AllSamplesCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockAllSamples.RLock()
+	calls = mock.calls.AllSamples
+	mock.lockAllSamples.RUnlock()
+	return calls
+}
+
+// ResetAllSamplesCalls reset all the calls that were made to AllSamples.
+func (mock *SpamFilterMock) ResetAllSamplesCalls() {
+	mock.lockAllSamples.Lock()
+	mock.calls.AllSamples = nil
+	mock.lockAllSamples.Unlock()
 }
 
 // DynamicSamples calls DynamicSamplesFunc.
@@ -319,6 +363,10 @@ func (mock *SpamFilterMock) ResetUpdateSpamCalls() {
 
 // ResetCalls reset all the calls that were made to all mocked methods.
 func (mock *SpamFilterMock) ResetCalls() {
+	mock.lockAllSamples.Lock()
+	mock.calls.AllSamples = nil
+	mock.lockAllSamples.Unlock()
+
 	mock.lockDynamicSamples.Lock()
 	mock.calls.DynamicSamples = nil
 	mock.lockDynamicSamples.Unlock()

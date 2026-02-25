@@ -33,9 +33,9 @@ func (s *Server) listBotsHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt time.Time `json:"created_at"`
 		UpdatedAt time.Time `json:"updated_at"`
 	}
-	result := make([]botResponse, len(bots))
-	for i, b := range bots {
-		result[i] = botResponse{
+	result := make([]botResponse, 0, len(bots))
+	for _, b := range bots {
+		result = append(result, botResponse{
 			ID:        b.ID,
 			Name:      b.Name,
 			Token:     maskToken(b.Token),
@@ -43,7 +43,7 @@ func (s *Server) listBotsHandler(w http.ResponseWriter, r *http.Request) {
 			Active:    b.Active,
 			CreatedAt: b.CreatedAt,
 			UpdatedAt: b.UpdatedAt,
-		}
+		})
 	}
 	writeJSONResponse(w, http.StatusOK, result)
 }

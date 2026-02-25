@@ -18,7 +18,7 @@ export default function Bots() {
     setLoading(true);
     try {
       const response = await botsApi.list();
-      setBots(response.data);
+      setBots(response.data || []);
     } catch {
       // handle error
     } finally {

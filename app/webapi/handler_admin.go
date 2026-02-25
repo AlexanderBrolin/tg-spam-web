@@ -19,6 +19,9 @@ func (s *Server) listAdminUsersHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusInternalServerError, "failed to list admin users")
 		return
 	}
+	if users == nil {
+		users = []storage.AdminUserInfo{}
+	}
 	writeJSONResponse(w, http.StatusOK, users)
 }
 

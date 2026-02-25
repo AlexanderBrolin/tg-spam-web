@@ -1,23 +1,21 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { spamApi } from '@/api/spam';
-import { useChannelStore } from '@/store/channelStore';
 import type { SpamCheck as SpamCheckType } from '@/types';
 
 export default function SpamCheck() {
   const [text, setText] = useState('');
   const [results, setResults] = useState<SpamCheckType[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const selectedGid = useChannelStore((s) => s.selectedGid);
 
   const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim() || !selectedGid) return;
+    if (!text.trim()) return;
 
     setLoading(true);
     try {
-      const response = await spamApi.check(text, selectedGid);
-      setResults(response.data);
+      const response = await spamApi.check(text);
+      setResults(response.data.checks || []);
     } catch {
       // handle error
     } finally {

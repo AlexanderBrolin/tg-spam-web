@@ -67,12 +67,21 @@ func (s *Server) listDetectedSpamHandler(w http.ResponseWriter, r *http.Request)
 		perPage = 50
 	}
 
+	if entries == nil {
+		entries = entries[:0:0]
+	}
+
 	total := len(entries)
 	start := min((page-1)*perPage, total)
 	end := min(start+perPage, total)
 
+	pageEntries := entries[start:end]
+	if pageEntries == nil {
+		pageEntries = entries[:0:0]
+	}
+
 	writeJSONResponse(w, http.StatusOK, map[string]any{
-		"entries":  entries[start:end],
+		"entries":  pageEntries,
 		"total":    total,
 		"page":     page,
 		"per_page": perPage,

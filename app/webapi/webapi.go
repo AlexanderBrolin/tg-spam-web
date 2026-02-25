@@ -36,6 +36,7 @@ import (
 //go:generate moq --out mocks/detected_spam.go --pkg mocks --with-resets --skip-ensure . DetectedSpam
 //go:generate moq --out mocks/storage_engine.go --pkg mocks --with-resets --skip-ensure . StorageEngine
 //go:generate moq --out mocks/dictionary.go --pkg mocks --with-resets --skip-ensure . Dictionary
+//go:generate moq --out mocks/approved_users_store.go --pkg mocks --with-resets --skip-ensure . ApprovedUsersStore
 
 // startTime tracks when the server started
 var startTime = time.Now()
@@ -61,6 +62,7 @@ type Config struct {
 	// v2 API fields
 	AuthService          AuthServiceV2          // JWT auth service for v2 API
 	AdminUsersStore      AdminUsersStore        // admin users storage for v2 API
+	ApprovedUsersStore   ApprovedUsersStore     // per-channel approved users storage for v2 API
 	ChannelsStore        ChannelsStore          // channels storage for v2 API
 	ChannelSettingsStore ChannelSettings        // channel settings storage for v2 API
 	BotsStore            BotsStore              // bots storage for v2 API
@@ -137,6 +139,7 @@ type SpamFilter interface {
 	UpdateHam(msg string) error
 	ReloadSamples() (err error)
 	DynamicSamples() (spam, ham []string, err error)
+	AllSamples() (spam, ham []string, err error)
 	RemoveDynamicSpamSample(sample string) error
 	RemoveDynamicHamSample(sample string) error
 }
@@ -168,6 +171,13 @@ type Dictionary interface {
 	Read(ctx context.Context, t storage.DictionaryType) ([]string, error)
 	ReadWithIDs(ctx context.Context, t storage.DictionaryType) ([]storage.DictionaryEntry, error)
 	Stats(ctx context.Context) (*storage.DictionaryStats, error)
+}
+
+// ApprovedUsersStore provides per-channel access to approved user data
+type ApprovedUsersStore interface {
+	ReadByGID(ctx context.Context, gid string) ([]approved.UserInfo, error)
+	WriteByGID(ctx context.Context, gid string, user approved.UserInfo) error
+	DeleteByGID(ctx context.Context, gid string, id string) error
 }
 
 // AuthServiceV2 provides JWT authentication operations for v2 API

@@ -9,11 +9,17 @@ import (
 
 // getSamplesHandler handles GET /api/v2/samples
 func (s *Server) getSamplesHandler(w http.ResponseWriter, _ *http.Request) {
-	spam, ham, err := s.SpamFilter.DynamicSamples()
+	spam, ham, err := s.SpamFilter.AllSamples()
 	if err != nil {
 		log.Printf("[ERROR] failed to get dynamic samples: %v", err)
 		writeJSONError(w, http.StatusInternalServerError, "failed to get samples")
 		return
+	}
+	if spam == nil {
+		spam = []string{}
+	}
+	if ham == nil {
+		ham = []string{}
 	}
 	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"spam":       spam,

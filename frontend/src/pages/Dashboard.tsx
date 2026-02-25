@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ShieldAlert, Users, Radio, TrendingUp } from 'lucide-react';
+import { ShieldAlert, Users, TrendingUp, Clock } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -38,9 +38,23 @@ export default function Dashboard() {
     );
   }
 
-  const pieData = stats?.spam_by_type
-    ? Object.entries(stats.spam_by_type).map(([name, value]) => ({ name, value }))
+  const pieData = stats?.by_detector
+    ? Object.entries(stats.by_detector).map(([name, value]) => ({ name, value }))
     : [];
+
+  const timelineData = stats?.by_day
+    ? Object.entries(stats.by_day)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, count]) => ({ date, count }))
+    : [];
+
+  const formatUptime = (seconds: number) => {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    if (days > 0) return `${days}d ${hours}h`;
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+  };
 
   return (
     <div className="space-y-6">
@@ -55,22 +69,22 @@ export default function Dashboard() {
           color="text-red-600 bg-red-100"
         />
         <StatCard
+          title="Today"
+          value={stats?.today_spam ?? 0}
+          icon={<TrendingUp size={24} />}
+          color="text-orange-600 bg-orange-100"
+        />
+        <StatCard
           title="Approved Users"
-          value={stats?.total_approved ?? 0}
+          value={stats?.approved_users ?? 0}
           icon={<Users size={24} />}
           color="text-green-600 bg-green-100"
         />
         <StatCard
-          title="Active Channels"
-          value={stats?.active_channels ?? 0}
-          icon={<Radio size={24} />}
+          title="Uptime"
+          value={stats?.uptime_seconds ? formatUptime(stats.uptime_seconds) : '—'}
+          icon={<Clock size={24} />}
           color="text-blue-600 bg-blue-100"
-        />
-        <StatCard
-          title="Detection Rate"
-          value={stats?.total_spam ? `${stats.total_spam}/day` : '0'}
-          icon={<TrendingUp size={24} />}
-          color="text-purple-600 bg-purple-100"
         />
       </div>
 
@@ -79,15 +93,21 @@ export default function Dashboard() {
         {/* timeline */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Spam Over Time</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={stats?.spam_timeline ?? []}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          {timelineData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={timelineData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[300px] text-gray-400">
+              No data available
+            </div>
+          )}
         </div>
 
         {/* by type */}

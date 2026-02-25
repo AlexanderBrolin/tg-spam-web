@@ -171,6 +171,77 @@ func (au *ApprovedUsers) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// ReadByGID returns approved users for a specific group, accepting gid as an explicit parameter
+func (au *ApprovedUsers) ReadByGID(ctx context.Context, gid string) ([]approved.UserInfo, error) {
+	au.RLock()
+	defer au.RUnlock()
+
+	query := au.Adopt("SELECT uid, gid, name, timestamp FROM approved_users WHERE gid = ? ORDER BY uid ASC")
+	users := []approvedUsersInfo{}
+	if err := au.SelectContext(ctx, &users, query, gid); err != nil {
+		return nil, fmt.Errorf("failed to get approved users for gid %s: %w", gid, err)
+	}
+
+	res := make([]approved.UserInfo, len(users))
+	for i, u := range users {
+		res[i] = approved.UserInfo{
+			UserID:    u.UserID,
+			UserName:  u.UserName,
+			Timestamp: u.Timestamp,
+		}
+	}
+	return res, nil
+}
+
+// WriteByGID adds a user to the approved list for a specific group
+func (au *ApprovedUsers) WriteByGID(ctx context.Context, gid string, user approved.UserInfo) error {
+	if user.UserID == "" {
+		return fmt.Errorf("user id can't be empty")
+	}
+
+	au.Lock()
+	defer au.Unlock()
+
+	if user.Timestamp.IsZero() {
+		user.Timestamp = time.Now()
+	}
+
+	query, err := approvedUsersQueries.Pick(au.Type(), CmdAddApprovedUser)
+	if err != nil {
+		return fmt.Errorf("failed to get write query: %w", err)
+	}
+
+	if _, err := au.ExecContext(ctx, query, user.UserID, gid, user.UserName, user.Timestamp); err != nil {
+		return fmt.Errorf("failed to insert user %+v for gid %s: %w", user, gid, err)
+	}
+
+	log.Printf("[INFO] user %q (%s) added to approved users for gid %s", user.UserName, user.UserID, gid)
+	return nil
+}
+
+// DeleteByGID removes a user from the approved list for a specific group
+func (au *ApprovedUsers) DeleteByGID(ctx context.Context, gid string, id string) error {
+	if id == "" {
+		return fmt.Errorf("user id can't be empty")
+	}
+
+	au.Lock()
+	defer au.Unlock()
+
+	query := au.Adopt("DELETE FROM approved_users WHERE uid = ? AND gid = ?")
+	result, err := au.ExecContext(ctx, query, id, gid)
+	if err != nil {
+		return fmt.Errorf("failed to delete id %s for gid %s: %w", id, gid, err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("approved user %s not found for gid %s", id, gid)
+	}
+
+	log.Printf("[INFO] user %s deleted from approved users for gid %s", id, gid)
+	return nil
+}
+
 // migrateTableTx handles migration within a transaction
 func (au *ApprovedUsers) migrate(ctx context.Context, tx *sqlx.Tx, gid string) error {
 	// try to select with new structure, if works - already migrated

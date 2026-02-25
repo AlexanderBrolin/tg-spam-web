@@ -30,6 +30,12 @@ func (s *Server) getDictionaryHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[WARN] failed to get dictionary stats: %v", err)
 	}
 
+	if stopPhrases == nil {
+		stopPhrases = []storage.DictionaryEntry{}
+	}
+	if ignoredWords == nil {
+		ignoredWords = []storage.DictionaryEntry{}
+	}
 	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"stop_phrases":  stopPhrases,
 		"ignored_words": ignoredWords,

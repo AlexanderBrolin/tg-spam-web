@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Users } from 'lucide-react';
+import { Plus, Trash2, Users, Radio } from 'lucide-react';
 import { usersApi } from '@/api/users';
 import { useChannelStore } from '@/store/channelStore';
 import type { ApprovedUser } from '@/types';
 
 export default function ApprovedUsers() {
   const [users, setUsers] = useState<ApprovedUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [newUserId, setNewUserId] = useState('');
   const [newUserName, setNewUserName] = useState('');
@@ -18,7 +18,7 @@ export default function ApprovedUsers() {
       setLoading(true);
       try {
         const response = await usersApi.getApproved(selectedGid);
-        setUsers(response.data);
+        setUsers(response.data.users || []);
       } catch {
         // handle error
       } finally {
@@ -30,11 +30,11 @@ export default function ApprovedUsers() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedGid || !newUserId.trim()) return;
+    if (!newUserId.trim() || !selectedGid) return;
     try {
       await usersApi.addApproved(selectedGid, newUserId, newUserName);
       const response = await usersApi.getApproved(selectedGid);
-      setUsers(response.data);
+      setUsers(response.data.users || []);
       setNewUserId('');
       setNewUserName('');
       setShowAdd(false);
@@ -44,8 +44,7 @@ export default function ApprovedUsers() {
   };
 
   const handleRemove = async (userId: string) => {
-    if (!selectedGid) return;
-    if (!confirm('Remove this user from the approved list?')) return;
+    if (!selectedGid || !confirm('Remove this user from the approved list?')) return;
     try {
       await usersApi.removeApproved(selectedGid, userId);
       setUsers((prev) => prev.filter((u) => u.user_id !== userId));
@@ -53,6 +52,15 @@ export default function ApprovedUsers() {
       // handle error
     }
   };
+
+  if (!selectedGid) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+        <Radio size={48} className="mb-3 opacity-30" />
+        <p className="text-sm">Select a channel in the sidebar to view approved users</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -65,7 +73,12 @@ export default function ApprovedUsers() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Approved Users</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Approved Users</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Whitelisted users whose messages are never checked for spam.
+          </p>
+        </div>
         <button
           onClick={() => setShowAdd(!showAdd)}
           className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
