@@ -1,3 +1,12 @@
+# stage 1: build React frontend
+FROM node:20-alpine AS frontend
+WORKDIR /build/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build -- --outDir ../app/webapi/frontend/dist
+
+# stage 2: build Go binary
 FROM ghcr.io/umputun/baseimage/buildgo:v1.17.0 AS build
 
 ARG GIT_BRANCH
@@ -5,6 +14,7 @@ ARG GITHUB_SHA
 ARG CI
 
 ADD . /build
+COPY --from=frontend /build/app/webapi/frontend/dist /build/app/webapi/frontend/dist
 WORKDIR /build
 
 RUN go version
@@ -21,10 +31,8 @@ RUN \
  echo "version=$version" && \
  cd app && go build -o /build/tg-spam -ldflags "-X main.revision=${version} -s -w"
 
-
+# stage 3: runtime
 FROM alpine:3.22
-# enables automatic changelog generation by tools like Dependabot
-LABEL org.opencontainers.image.source="https://github.com/umputun/tg-spam"
 ENV TGSPAM_IN_DOCKER=1
 RUN apk add --no-cache tzdata
 COPY --from=build /build/tg-spam /srv/tg-spam

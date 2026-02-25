@@ -23,7 +23,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/go-pkgz/fileutils"
 	"github.com/go-pkgz/lgr"
-	"github.com/go-pkgz/rest"
 	"github.com/jessevdk/go-flags"
 	"github.com/sashabaranov/go-openai"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -483,19 +482,6 @@ func checkVolumeMount(opts options) (ok bool) {
 }
 
 func activateServer(ctx context.Context, opts options, sf *bot.SpamFilter, loc *storage.Locator, db *engine.SQL) (err error) {
-	authPassswd := opts.Server.AuthPasswd
-	if opts.Server.AuthPasswd == "auto" {
-		authPassswd, err = webapi.GenerateRandomPassword(20)
-		if err != nil {
-			return fmt.Errorf("can't generate random password, %w", err)
-		}
-		authHash, err := rest.GenerateBcryptHash(authPassswd)
-		if err != nil {
-			return fmt.Errorf("can't generate bcrypt hash for password, %w", err)
-		}
-		log.Printf("[WARN] generated basic auth password for user tg-spam: %q, bcrypt hash: %s", authPassswd, authHash)
-	}
-
 	// make store and load approved users
 	detectedSpamStore, dsErr := storage.NewDetectedSpam(ctx, db)
 	if dsErr != nil {
@@ -570,8 +556,6 @@ func activateServer(ctx context.Context, opts options, sf *bot.SpamFilter, loc *
 		DetectedSpam:  detectedSpamStore,
 		Dictionary:    dictionaryStore,
 		StorageEngine: db, // add database engine for backup functionality
-		AuthPasswd:    authPassswd,
-		AuthHash:      opts.Server.AuthHash,
 		Version:       revision,
 		Dbg:           opts.Dbg,
 		Settings:      settings,

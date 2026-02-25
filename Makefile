@@ -8,22 +8,15 @@ REV=$(if $(filter --,$(GIT_REV)),latest,$(GIT_REV)) # fallback to latest if not 
 
 
 docker:
-	docker build -t umputun/tg-spam .
+	docker build -t tg-spam-corp .
+
+frontend:
+	cd frontend && npm ci && npm run build
 
 race_test:
 	go test -race -timeout=60s -count 1 ./...
 
-prep_site:
-	cp -fv README.md site/docs/index.md
-	sed -i '' 's|https:\/\/github.com\/umputun\/tg-spam\/raw\/master\/site\/tg-spam-bg.png|logo.png|' site/docs/index.md
-	sed -i '' 's|^.*/workflows/ci.yml.*$$||' site/docs/index.md
-
-release:
-	@echo release to .bin
-	goreleaser --snapshot --skip-publish --clean
-	ls -l .bin
-
-build:
+build: frontend
 	mkdir -p .bin
 	cd app && go build -ldflags "-X main.revision=$(REV) -s -w" -o ../.bin/tg-spam.$(BRANCH)
 	cp .bin/tg-spam.$(BRANCH) .bin/tg-spam
@@ -35,25 +28,8 @@ test:
 	go tool cover -func=coverage_no_mocks.out
 	rm coverage.out coverage_no_mocks.out
 
-build_site: prep_site
-	cd site &&\
-	pip3 install -r requirements.txt &&\
-	mkdocs build -d public
-
 unfuck-ai-comments:
 	@echo "unfuck ai comments"
 	unfuck-ai-comments run --fmt --skip=mocks ./...
 
-# install playwright browsers (run once or after playwright-go version update)
-e2e-ui-setup:
-	go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps chromium
-
-# run e2e ui tests headless (default, for CI and quick checks)
-e2e-ui:
-	go test -v -count=1 -timeout=5m -tags=e2e ./e2e-ui/...
-
-# run e2e ui tests with visible browser (for debugging)
-e2e-ui-debug:
-	export E2E_HEADLESS=false && go test -v -count=1 -timeout=10m -tags=e2e ./e2e-ui/...
-
-.PHONY: docker race_test prep_site release build test e2e-ui-setup e2e-ui e2e-ui-debug
+.PHONY: docker frontend race_test build test
