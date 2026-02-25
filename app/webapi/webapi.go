@@ -372,9 +372,10 @@ func (s *Server) routesV2(router *routegroup.Bundle) {
 	})
 
 	// serve React SPA for the admin panel
-	router.Mount("/app/").Route(func(r *routegroup.Bundle) {
-		r.Handle("GET /", spaHandler())
-		r.Handle("GET /{path...}", spaHandler())
+	spaServe := spaHandler().ServeHTTP
+	router.Mount("/app").Route(func(r *routegroup.Bundle) {
+		r.HandleFunc("GET /", spaServe)
+		r.HandleFunc("GET /{path...}", spaServe)
 	})
 }
 
