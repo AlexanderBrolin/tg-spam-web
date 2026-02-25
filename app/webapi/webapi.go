@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/didip/tollbooth/v8"
+	"github.com/didip/tollbooth/v8/limiter"
 	log "github.com/go-pkgz/lgr"
 	"github.com/go-pkgz/rest"
 	"github.com/go-pkgz/rest/logger"
@@ -241,7 +242,9 @@ func (s *Server) Run(ctx context.Context) error {
 	router.Use(logger.New(logger.Log(log.Default()), logger.Prefix("[DEBUG]")).Handler)
 	router.Use(rest.Throttle(1000))
 	router.Use(rest.AppInfo("tg-spam", "umputun", s.Version), rest.Ping)
-	router.Use(tollbooth.HTTPMiddleware(tollbooth.NewLimiter(50, nil)))
+	lmt := tollbooth.NewLimiter(50, nil)
+	lmt.SetIPLookup(limiter.IPLookup{Name: "X-Real-IP"})
+	router.Use(tollbooth.HTTPMiddleware(lmt))
 	router.Use(rest.SizeLimit(1024 * 1024))
 
 	if s.AuthService != nil {
