@@ -376,8 +376,8 @@ func (s *Server) routesV2(router *routegroup.Bundle) {
 		})
 	})
 
-	// serve React SPA for the admin panel
-	spaServe := spaHandler().ServeHTTP
+	// serve React SPA for the admin panel; StripPrefix removes /app so the handler sees paths relative to frontend/dist
+	spaServe := http.StripPrefix("/app", spaHandler()).ServeHTTP
 	router.Mount("/app").Route(func(r *routegroup.Bundle) {
 		r.HandleFunc("GET /", spaServe)
 		r.HandleFunc("GET /{path...}", spaServe)
