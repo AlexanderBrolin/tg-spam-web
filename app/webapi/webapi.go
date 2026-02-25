@@ -248,6 +248,11 @@ func (s *Server) Run(ctx context.Context) error {
 		s.routesV2(router)
 	}
 
+	// redirect root to admin panel
+	router.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/app/", http.StatusFound)
+	})
+
 	srv := &http.Server{Addr: s.ListenAddr, Handler: router, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second}
 	go func() {
 		<-ctx.Done()
