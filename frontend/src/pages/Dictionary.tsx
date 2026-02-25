@@ -42,7 +42,7 @@ export default function Dictionary() {
   const handleRemove = async (entry: DictionaryEntry) => {
     try {
       await dictionaryApi.remove(entry.id);
-      if (entry.type === 'stop_phrase') {
+      if (activeTab === 'stop_phrase') {
         setStopPhrases((prev) => prev.filter((e) => e.id !== entry.id));
       } else {
         setIgnoredWords((prev) => prev.filter((e) => e.id !== entry.id));
