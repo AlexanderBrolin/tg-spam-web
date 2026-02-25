@@ -220,7 +220,7 @@ func (au *ApprovedUsers) WriteByGID(ctx context.Context, gid string, user approv
 }
 
 // DeleteByGID removes a user from the approved list for a specific group
-func (au *ApprovedUsers) DeleteByGID(ctx context.Context, gid string, id string) error {
+func (au *ApprovedUsers) DeleteByGID(ctx context.Context, gid, id string) error {
 	if id == "" {
 		return fmt.Errorf("user id can't be empty")
 	}

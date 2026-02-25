@@ -177,7 +177,7 @@ type Dictionary interface {
 type ApprovedUsersStore interface {
 	ReadByGID(ctx context.Context, gid string) ([]approved.UserInfo, error)
 	WriteByGID(ctx context.Context, gid string, user approved.UserInfo) error
-	DeleteByGID(ctx context.Context, gid string, id string) error
+	DeleteByGID(ctx context.Context, gid, id string) error
 }
 
 // AuthServiceV2 provides JWT authentication operations for v2 API

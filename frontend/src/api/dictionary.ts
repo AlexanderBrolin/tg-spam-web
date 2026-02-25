@@ -15,5 +15,5 @@ export const dictionaryApi = {
     apiClient.post('/dictionary/', { type, data }),
 
   remove: (id: number) =>
-    apiClient.delete('/dictionary/', { data: { id } }),
+    apiClient.delete('/dictionary/', { params: { id } }),
 };

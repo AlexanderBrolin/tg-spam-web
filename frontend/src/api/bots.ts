@@ -3,10 +3,10 @@ import type { Bot } from '@/types';
 
 export const botsApi = {
   list: () =>
-    apiClient.get<Bot[]>('/bots'),
+    apiClient.get<Bot[]>('/bots/'),
 
   create: (data: { name: string; token: string }) =>
-    apiClient.post<{ id: number }>('/bots', data),
+    apiClient.post<{ id: number }>('/bots/', data),
 
   update: (id: number, data: Partial<Bot>) =>
     apiClient.put(`/bots/${id}`, data),

@@ -3,6 +3,7 @@ package webapi
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	log "github.com/go-pkgz/lgr"
 
@@ -79,18 +80,35 @@ func (s *Server) addDictionaryHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// deleteDictionaryHandler handles DELETE /api/v2/dictionary/{id}
+// deleteDictionaryHandler handles DELETE /api/v2/dictionary?id=xxx
 func (s *Server) deleteDictionaryHandler(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ID int64 `json:"id"`
+	// support id as query param (preferred) or JSON body (backwards compatibility)
+	var id int64
+	if idStr := r.URL.Query().Get("id"); idStr != "" {
+		var err error
+		id, err = strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, "invalid id parameter")
+			return
+		}
+	} else {
+		var req struct {
+			ID int64 `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		id = req.ID
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+
+	if id == 0 {
+		writeJSONError(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
-	if err := s.Dictionary.Delete(r.Context(), req.ID); err != nil {
-		log.Printf("[ERROR] failed to delete dictionary entry id=%d: %v", req.ID, err)
+	if err := s.Dictionary.Delete(r.Context(), id); err != nil {
+		log.Printf("[ERROR] failed to delete dictionary entry id=%d: %v", id, err)
 		writeJSONError(w, http.StatusInternalServerError, "failed to delete dictionary entry")
 		return
 	}
