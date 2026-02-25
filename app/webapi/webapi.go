@@ -22,6 +22,7 @@ import (
 	"github.com/go-pkgz/routegroup"
 
 	"github.com/umputun/tg-spam/app/auth"
+	"github.com/umputun/tg-spam/app/events"
 	"github.com/umputun/tg-spam/app/storage"
 	"github.com/umputun/tg-spam/app/storage/engine"
 	"github.com/umputun/tg-spam/lib/approved"
@@ -57,10 +58,13 @@ type Config struct {
 	Settings      Settings      // application settings
 
 	// v2 API fields
-	AuthService          AuthServiceV2   // JWT auth service for v2 API
-	AdminUsersStore      AdminUsersStore // admin users storage for v2 API
-	ChannelsStore        ChannelsStore   // channels storage for v2 API
-	ChannelSettingsStore ChannelSettings // channel settings storage for v2 API
+	AuthService          AuthServiceV2          // JWT auth service for v2 API
+	AdminUsersStore      AdminUsersStore        // admin users storage for v2 API
+	ChannelsStore        ChannelsStore          // channels storage for v2 API
+	ChannelSettingsStore ChannelSettings        // channel settings storage for v2 API
+	BotsStore            BotsStore              // bots storage for v2 API
+	ChannelManager       ChannelManagerV2       // manages running channel listeners
+	ChannelBuilder       *events.ChannelBuilder // builds ChannelConfig from storage data
 }
 
 // Settings contains all application settings
@@ -190,6 +194,7 @@ type AdminUsersStore interface {
 // ChannelsStore provides access to channel data
 type ChannelsStore interface {
 	Create(ctx context.Context, channel storage.ChannelInfo) (int64, error)
+	FindByID(ctx context.Context, id int64) (*storage.ChannelInfo, error)
 	FindByGID(ctx context.Context, gid string) (*storage.ChannelInfo, error)
 	List(ctx context.Context) ([]storage.ChannelInfo, error)
 	ListActive(ctx context.Context) ([]storage.ChannelInfo, error)
@@ -203,6 +208,25 @@ type ChannelSettings interface {
 	Get(ctx context.Context, gid string) (*storage.ChannelSettingsInfo, error)
 	Update(ctx context.Context, s storage.ChannelSettingsInfo) error
 	Delete(ctx context.Context, gid string) error
+}
+
+// ChannelManagerV2 manages lifecycle of per-channel TelegramListener instances
+type ChannelManagerV2 interface {
+	AddChannel(cfg events.ChannelConfig) error
+	RemoveChannel(gid string) error
+	RestartChannel(gid string, cfg events.ChannelConfig) error
+	StopAll()
+	Running() []string
+}
+
+// BotsStore provides access to bot data
+type BotsStore interface {
+	Create(ctx context.Context, bot storage.BotInfo) (int64, error)
+	FindByID(ctx context.Context, id int64) (*storage.BotInfo, error)
+	List(ctx context.Context) ([]storage.BotInfo, error)
+	ListActive(ctx context.Context) ([]storage.BotInfo, error)
+	Update(ctx context.Context, bot storage.BotInfo) error
+	Delete(ctx context.Context, id int64) error
 }
 
 // NewServer creates a new web API server.
@@ -307,6 +331,16 @@ func (s *Server) routesV2(router *routegroup.Bundle) {
 		api.Mount("/channels").Route(func(r *routegroup.Bundle) {
 			r.Use(auth.RequireRole("superadmin", "admin"))
 			r.HandleFunc("PUT /{gid}/settings", s.updateChannelSettingsHandler)
+		})
+
+		// bots management (superadmin only)
+		api.Mount("/bots").Route(func(r *routegroup.Bundle) {
+			r.Use(auth.RequireRole("superadmin"))
+			r.HandleFunc("GET /", s.listBotsHandler)
+			r.HandleFunc("POST /", s.createBotHandler)
+			r.HandleFunc("PUT /{id}", s.updateBotHandler)
+			r.HandleFunc("DELETE /{id}", s.deleteBotHandler)
+			r.HandleFunc("POST /{id}/validate", s.validateBotHandler)
 		})
 
 		// admin user management (superadmin only)

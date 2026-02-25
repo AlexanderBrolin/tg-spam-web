@@ -24,6 +24,7 @@ type ChannelInfo struct {
 	ID         int64     `db:"id" json:"id"`
 	GID        string    `db:"gid" json:"gid"`
 	TelegramID int64     `db:"telegram_id" json:"telegram_id"`
+	BotID      int64     `db:"bot_id" json:"bot_id"`
 	Name       string    `db:"name" json:"name"`
 	Username   string    `db:"username" json:"username"`
 	Active     bool      `db:"active" json:"active"`
@@ -43,6 +44,7 @@ var channelsQueries = engine.NewQueryMap().
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			gid TEXT NOT NULL UNIQUE,
 			telegram_id INTEGER NOT NULL,
+			bot_id INTEGER NOT NULL DEFAULT 0,
 			name TEXT NOT NULL,
 			username TEXT NOT NULL DEFAULT '',
 			active INTEGER NOT NULL DEFAULT 1,
@@ -53,6 +55,7 @@ var channelsQueries = engine.NewQueryMap().
 			id SERIAL PRIMARY KEY,
 			gid TEXT NOT NULL UNIQUE,
 			telegram_id BIGINT NOT NULL,
+			bot_id BIGINT NOT NULL DEFAULT 0,
 			name TEXT NOT NULL,
 			username TEXT NOT NULL DEFAULT '',
 			active BOOLEAN NOT NULL DEFAULT true,
@@ -76,7 +79,7 @@ func NewChannels(ctx context.Context, db *engine.SQL) (*Channels, error) {
 		Name:          "channels",
 		CreateTable:   CmdCreateChannelsTable,
 		CreateIndexes: CmdCreateChannelsIndexes,
-		MigrateFunc:   func(_ context.Context, _ *sqlx.Tx, _ string) error { return nil },
+		MigrateFunc:   migrateChannels,
 		QueriesMap:    channelsQueries,
 	}
 	if err := engine.InitTable(ctx, db, cfg); err != nil {
@@ -91,10 +94,11 @@ func (ch *Channels) Create(ctx context.Context, channel ChannelInfo) (int64, err
 	defer ch.Unlock()
 
 	if ch.Type() == engine.Postgres {
-		query := `INSERT INTO channels (gid, telegram_id, name, username, active)
-			VALUES ($1, $2, $3, $4, $5) RETURNING id`
+		query := `INSERT INTO channels (gid, telegram_id, bot_id, name, username, active)
+			VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 		var id int64
-		err := ch.QueryRowContext(ctx, query, channel.GID, channel.TelegramID, channel.Name, channel.Username, channel.Active).Scan(&id)
+		err := ch.QueryRowContext(ctx, query, channel.GID, channel.TelegramID, channel.BotID,
+			channel.Name, channel.Username, channel.Active).Scan(&id)
 		if err != nil {
 			return 0, fmt.Errorf("failed to create channel %q: %w", channel.Name, err)
 		}
@@ -102,9 +106,10 @@ func (ch *Channels) Create(ctx context.Context, channel ChannelInfo) (int64, err
 		return id, nil
 	}
 
-	query := ch.Adopt(`INSERT INTO channels (gid, telegram_id, name, username, active)
-		VALUES (?, ?, ?, ?, ?)`)
-	result, err := ch.ExecContext(ctx, query, channel.GID, channel.TelegramID, channel.Name, channel.Username, channel.Active)
+	query := ch.Adopt(`INSERT INTO channels (gid, telegram_id, bot_id, name, username, active)
+		VALUES (?, ?, ?, ?, ?, ?)`)
+	result, err := ch.ExecContext(ctx, query, channel.GID, channel.TelegramID, channel.BotID,
+		channel.Name, channel.Username, channel.Active)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create channel %q: %w", channel.Name, err)
 	}
@@ -115,6 +120,23 @@ func (ch *Channels) Create(ctx context.Context, channel ChannelInfo) (int64, err
 	}
 	log.Printf("[INFO] channel created: %s (gid=%s, telegram_id=%d)", channel.Name, channel.GID, channel.TelegramID)
 	return id, nil
+}
+
+// FindByID returns a channel by its database ID
+func (ch *Channels) FindByID(ctx context.Context, id int64) (*ChannelInfo, error) {
+	ch.RLock()
+	defer ch.RUnlock()
+
+	query := ch.Adopt("SELECT * FROM channels WHERE id = ?")
+	var channel ChannelInfo
+	err := ch.GetContext(ctx, &channel, query, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to find channel id=%d: %w", id, err)
+	}
+	return &channel, nil
 }
 
 // FindByGID returns a channel by its gid
@@ -181,9 +203,9 @@ func (ch *Channels) Update(ctx context.Context, channel ChannelInfo) error {
 	ch.Lock()
 	defer ch.Unlock()
 
-	query := ch.Adopt(`UPDATE channels SET name = ?, username = ?, active = ?,
+	query := ch.Adopt(`UPDATE channels SET name = ?, username = ?, bot_id = ?, active = ?,
 		updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-	_, err := ch.ExecContext(ctx, query, channel.Name, channel.Username, channel.Active, channel.ID)
+	_, err := ch.ExecContext(ctx, query, channel.Name, channel.Username, channel.BotID, channel.Active, channel.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update channel id=%d: %w", channel.ID, err)
 	}
@@ -201,5 +223,18 @@ func (ch *Channels) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("failed to delete channel id=%d: %w", id, err)
 	}
 	log.Printf("[INFO] channel id=%d deleted", id)
+	return nil
+}
+
+// migrateChannels adds bot_id column if it doesn't exist
+func migrateChannels(_ context.Context, tx *sqlx.Tx, _ string) error {
+	var count int
+	if err := tx.Get(&count, "SELECT COUNT(*) FROM channels WHERE bot_id = 0 OR bot_id IS NOT NULL"); err == nil {
+		return nil // bot_id column already exists
+	}
+	if _, err := tx.Exec("ALTER TABLE channels ADD COLUMN bot_id INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return fmt.Errorf("failed to add bot_id column to channels: %w", err)
+	}
+	log.Printf("[INFO] channels table migrated: added bot_id column")
 	return nil
 }

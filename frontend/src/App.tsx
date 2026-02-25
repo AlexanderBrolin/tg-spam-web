@@ -10,6 +10,7 @@ import Samples from '@/pages/Samples';
 import Dictionary from '@/pages/Dictionary';
 import Channels from '@/pages/Channels';
 import ChannelSettings from '@/pages/ChannelSettings';
+import Bots from '@/pages/Bots';
 import AdminUsers from '@/pages/AdminUsers';
 import Settings from '@/pages/Settings';
 import ChangePassword from '@/pages/ChangePassword';
@@ -41,6 +42,11 @@ export default function App() {
           <Route path="dictionary" element={
             <ProtectedRoute requireRole={['superadmin', 'admin']}>
               <Dictionary />
+            </ProtectedRoute>
+          } />
+          <Route path="bots" element={
+            <ProtectedRoute requireRole={['superadmin']}>
+              <Bots />
             </ProtectedRoute>
           } />
           <Route path="channels" element={

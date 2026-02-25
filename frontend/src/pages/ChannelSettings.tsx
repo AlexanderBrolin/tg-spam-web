@@ -65,6 +65,12 @@ export default function ChannelSettings() {
       </div>
 
       <div className="grid gap-6">
+        {/* channel settings */}
+        <Section title="Channel">
+          <TextField label="Admin Group (Telegram chat ID)" value={settings.admin_group}
+            onChange={(v) => updateField('admin_group', v)} />
+        </Section>
+
         {/* classifier settings */}
         <Section title="Classifier">
           <NumberField label="Similarity Threshold" value={settings.similarity_threshold}
@@ -89,6 +95,10 @@ export default function ChannelSettings() {
             onChange={(v) => updateField('openai_enabled', v)} />
           {settings.openai_enabled && (
             <>
+              <TextField label="OpenAI Token" value={settings.openai_token}
+                onChange={(v) => updateField('openai_token', v)} />
+              <TextField label="OpenAI API Base (optional)" value={settings.openai_api_base}
+                onChange={(v) => updateField('openai_api_base', v)} />
               <TextField label="OpenAI Model" value={settings.openai_model}
                 onChange={(v) => updateField('openai_model', v)} />
               <Toggle label="OpenAI Veto Mode" value={settings.openai_veto}

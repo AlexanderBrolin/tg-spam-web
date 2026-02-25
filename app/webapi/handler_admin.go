@@ -68,7 +68,7 @@ func (s *Server) createAdminUserHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 // updateAdminUserHandler handles PUT /api/v2/admin/users/{id}
-func (s *Server) updateAdminUserHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) updateAdminUserHandler(w http.ResponseWriter, r *http.Request) { //nolint:dupl // different domain
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid user id")

@@ -11,10 +11,21 @@ export interface AdminUser {
   last_login: string | null;
 }
 
+export interface Bot {
+  id: number;
+  name: string;
+  token: string;
+  username: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Channel {
   id: number;
   gid: string;
   telegram_id: number;
+  bot_id: number;
   name: string;
   username: string;
   active: boolean;
@@ -56,6 +67,9 @@ export interface ChannelSettings {
   suppress_join_message: boolean;
   delete_join_messages: boolean;
   delete_leave_messages: boolean;
+  admin_group: string;
+  openai_token: string;
+  openai_api_base: string;
 }
 
 export interface SpamCheck {

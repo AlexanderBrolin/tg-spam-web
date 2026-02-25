@@ -1,7 +1,9 @@
 package webapi
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -26,6 +28,7 @@ func (s *Server) createChannelHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		GID        string `json:"gid"`
 		TelegramID int64  `json:"telegram_id"`
+		BotID      int64  `json:"bot_id"`
 		Name       string `json:"name"`
 		Username   string `json:"username"`
 	}
@@ -42,6 +45,7 @@ func (s *Server) createChannelHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := s.ChannelsStore.Create(r.Context(), storage.ChannelInfo{
 		GID:        req.GID,
 		TelegramID: req.TelegramID,
+		BotID:      req.BotID,
 		Name:       req.Name,
 		Username:   req.Username,
 		Active:     true,
@@ -57,11 +61,19 @@ func (s *Server) createChannelHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[WARN] failed to create default settings for channel gid=%s: %v", req.GID, err)
 	}
 
+	// start listener for the new channel if manager and builder are configured
+	if startErr := s.startChannelListener(r.Context(), storage.ChannelInfo{
+		ID: id, GID: req.GID, TelegramID: req.TelegramID,
+		BotID: req.BotID, Name: req.Name, Username: req.Username, Active: true,
+	}); startErr != nil {
+		log.Printf("[WARN] channel created but listener not started for gid=%s: %v", req.GID, startErr)
+	}
+
 	writeJSONResponse(w, http.StatusCreated, map[string]int64{"id": id})
 }
 
 // updateChannelHandler handles PUT /api/v2/channels/{id}
-func (s *Server) updateChannelHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) updateChannelHandler(w http.ResponseWriter, r *http.Request) { //nolint:dupl // different domain
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid channel id")
@@ -71,6 +83,7 @@ func (s *Server) updateChannelHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name     string `json:"name"`
 		Username string `json:"username"`
+		BotID    int64  `json:"bot_id"`
 		Active   bool   `json:"active"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -82,6 +95,7 @@ func (s *Server) updateChannelHandler(w http.ResponseWriter, r *http.Request) {
 		ID:       id,
 		Name:     req.Name,
 		Username: req.Username,
+		BotID:    req.BotID,
 		Active:   req.Active,
 	}); err != nil {
 		log.Printf("[ERROR] failed to update channel id=%d: %v", id, err)
@@ -100,10 +114,32 @@ func (s *Server) deleteChannelHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// look up channel to get GID for stopping the listener
+	ch, err := s.ChannelsStore.FindByID(r.Context(), id)
+	if err != nil {
+		log.Printf("[ERROR] failed to find channel id=%d: %v", id, err)
+		writeJSONError(w, http.StatusInternalServerError, "failed to find channel")
+		return
+	}
+
+	// stop listener before deleting from DB
+	if ch != nil && s.ChannelManager != nil {
+		if stopErr := s.ChannelManager.RemoveChannel(ch.GID); stopErr != nil {
+			log.Printf("[WARN] failed to stop listener for channel gid=%s: %v", ch.GID, stopErr)
+		}
+	}
+
 	if err := s.ChannelsStore.Delete(r.Context(), id); err != nil {
 		log.Printf("[ERROR] failed to delete channel id=%d: %v", id, err)
 		writeJSONError(w, http.StatusInternalServerError, "failed to delete channel")
 		return
+	}
+
+	// clean up channel settings
+	if ch != nil {
+		if delErr := s.ChannelSettingsStore.Delete(r.Context(), ch.GID); delErr != nil {
+			log.Printf("[WARN] failed to delete channel settings for gid=%s: %v", ch.GID, delErr)
+		}
 	}
 
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})
@@ -142,5 +178,94 @@ func (s *Server) updateChannelSettingsHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// restart channel listener with updated settings
+	if restartErr := s.rebuildAndRestartChannel(r.Context(), gid); restartErr != nil {
+		log.Printf("[WARN] settings saved but listener restart failed for gid=%s: %v", gid, restartErr)
+	}
+
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// startChannelListener builds a ChannelConfig and starts a listener for the given channel.
+// returns nil if manager or builder are not configured (graceful degradation).
+func (s *Server) startChannelListener(ctx context.Context, ch storage.ChannelInfo) error {
+	if s.ChannelManager == nil || s.ChannelBuilder == nil {
+		return nil
+	}
+
+	settings, err := s.ChannelSettingsStore.Get(ctx, ch.GID)
+	if err != nil {
+		return fmt.Errorf("get settings: %w", err)
+	}
+	if settings == nil {
+		return fmt.Errorf("settings not found for gid=%s", ch.GID)
+	}
+
+	if ch.BotID == 0 {
+		return fmt.Errorf("no bot assigned to channel gid=%s", ch.GID)
+	}
+
+	bot, err := s.BotsStore.FindByID(ctx, ch.BotID)
+	if err != nil {
+		return fmt.Errorf("find bot: %w", err)
+	}
+	if bot == nil {
+		return fmt.Errorf("bot id=%d not found", ch.BotID)
+	}
+
+	cfg, err := s.ChannelBuilder.Build(ch, *settings, *bot)
+	if err != nil {
+		return fmt.Errorf("build config: %w", err)
+	}
+
+	if err := s.ChannelManager.AddChannel(cfg); err != nil {
+		return fmt.Errorf("add channel: %w", err)
+	}
+	return nil
+}
+
+// rebuildAndRestartChannel rebuilds ChannelConfig from storage and restarts the listener.
+// returns nil if manager or builder are not configured.
+func (s *Server) rebuildAndRestartChannel(ctx context.Context, gid string) error {
+	if s.ChannelManager == nil || s.ChannelBuilder == nil {
+		return nil
+	}
+
+	ch, err := s.ChannelsStore.FindByGID(ctx, gid)
+	if err != nil {
+		return fmt.Errorf("find channel: %w", err)
+	}
+	if ch == nil {
+		return fmt.Errorf("channel gid=%s not found", gid)
+	}
+
+	settings, err := s.ChannelSettingsStore.Get(ctx, gid)
+	if err != nil {
+		return fmt.Errorf("get settings: %w", err)
+	}
+	if settings == nil {
+		return fmt.Errorf("settings not found for gid=%s", gid)
+	}
+
+	if ch.BotID == 0 {
+		return fmt.Errorf("no bot assigned to channel gid=%s", gid)
+	}
+
+	bot, err := s.BotsStore.FindByID(ctx, ch.BotID)
+	if err != nil {
+		return fmt.Errorf("find bot: %w", err)
+	}
+	if bot == nil {
+		return fmt.Errorf("bot id=%d not found", ch.BotID)
+	}
+
+	cfg, err := s.ChannelBuilder.Build(*ch, *settings, *bot)
+	if err != nil {
+		return fmt.Errorf("build config: %w", err)
+	}
+
+	if err := s.ChannelManager.RestartChannel(gid, cfg); err != nil {
+		return fmt.Errorf("restart channel: %w", err)
+	}
+	return nil
 }

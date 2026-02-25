@@ -27,6 +27,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/umputun/tg-spam/app/auth"
 	"github.com/umputun/tg-spam/app/bot"
 	"github.com/umputun/tg-spam/app/events"
 	"github.com/umputun/tg-spam/app/storage"
@@ -167,6 +168,12 @@ type options struct {
 		AuthPasswd string `long:"auth" env:"AUTH" default:"auto" description:"basic auth password for user 'tg-spam'"`
 		AuthHash   string `long:"auth-hash" env:"AUTH_HASH" default:"" description:"basic auth password hash for user 'tg-spam'"`
 	} `group:"server" namespace:"server" env-namespace:"SERVER"`
+
+	Auth struct {
+		JWTSecret     string `long:"jwt-secret" env:"JWT_SECRET" description:"JWT signing secret for admin panel auth"` //nolint:gosec // not a hardcoded secret, just a field name
+		AdminUser     string `long:"admin-user" env:"ADMIN_USER" default:"admin" description:"initial admin username"`
+		AdminPassword string `long:"admin-password" env:"ADMIN_PASSWORD" description:"initial admin password, auto-generated if empty"`
+	} `group:"auth" namespace:"auth" env-namespace:"AUTH"`
 
 	Training bool `long:"training" env:"TRAINING" description:"training mode, passive spam detection only"`
 	SoftBan  bool `long:"soft-ban" env:"SOFT_BAN" description:"soft ban mode, restrict user actions but not ban"`
@@ -555,11 +562,134 @@ func activateServer(ctx context.Context, opts options, sf *bot.SpamFilter, loc *
 		Locator:       loc,
 		DetectedSpam:  detectedSpamStore,
 		Dictionary:    dictionaryStore,
-		StorageEngine: db, // add database engine for backup functionality
+		StorageEngine: db,
 		Version:       revision,
 		Dbg:           opts.Dbg,
 		Settings:      settings,
 	}}
+
+	// wire v2 API if JWT secret is configured
+	if opts.Auth.JWTSecret != "" {
+		adminUsersStore, auErr := storage.NewAdminUsers(ctx, db)
+		if auErr != nil {
+			return fmt.Errorf("can't make admin users store, %w", auErr)
+		}
+
+		refreshTokensStore, rtErr := storage.NewRefreshTokens(ctx, db)
+		if rtErr != nil {
+			return fmt.Errorf("can't make refresh tokens store, %w", rtErr)
+		}
+
+		channelsStore, chErr := storage.NewChannels(ctx, db)
+		if chErr != nil {
+			return fmt.Errorf("can't make channels store, %w", chErr)
+		}
+
+		channelSettingsStore, csErr := storage.NewChannelSettings(ctx, db)
+		if csErr != nil {
+			return fmt.Errorf("can't make channel settings store, %w", csErr)
+		}
+
+		botsStore, bErr := storage.NewBots(ctx, db)
+		if bErr != nil {
+			return fmt.Errorf("can't make bots store, %w", bErr)
+		}
+
+		userAdapter := auth.NewAdminUsersAdapter(adminUsersStore)
+		tokenAdapter := auth.NewRefreshTokensAdapter(refreshTokensStore)
+		authService := auth.NewService(userAdapter, tokenAdapter, opts.Auth.JWTSecret)
+
+		// auto-create initial superadmin if no admin users exist
+		count, _ := adminUsersStore.Count(ctx)
+		if count == 0 {
+			password := opts.Auth.AdminPassword
+			if password == "" {
+				password, _ = webapi.GenerateRandomPassword(16)
+				log.Printf("[WARN] no admin users found, auto-generated admin password: %s", password)
+			}
+			hash, hErr := auth.HashPassword(password)
+			if hErr != nil {
+				return fmt.Errorf("can't hash admin password, %w", hErr)
+			}
+			if _, cErr := adminUsersStore.Create(ctx, storage.AdminUserInfo{
+				Username:     opts.Auth.AdminUser,
+				PasswordHash: hash,
+				Role:         "superadmin",
+				DisplayName:  "Administrator",
+				Active:       true,
+			}); cErr != nil {
+				return fmt.Errorf("can't create initial admin user, %w", cErr)
+			}
+			log.Printf("[INFO] initial superadmin user %q created", opts.Auth.AdminUser)
+		}
+
+		srv.AuthService = authService
+		srv.AdminUsersStore = adminUsersStore
+		srv.ChannelsStore = channelsStore
+		srv.ChannelSettingsStore = channelSettingsStore
+		srv.BotsStore = botsStore
+
+		// create shared stores for per-channel builders
+		samplesStore, sampErr := storage.NewSamples(ctx, db)
+		if sampErr != nil {
+			return fmt.Errorf("can't make samples store for builder, %w", sampErr)
+		}
+		dictStore, dErr := storage.NewDictionary(ctx, db)
+		if dErr != nil {
+			return fmt.Errorf("can't make dictionary store for builder, %w", dErr)
+		}
+
+		channelManager := events.NewChannelManager()
+		builder := &events.ChannelBuilder{
+			SamplesStore: samplesStore,
+			DictStore:    dictStore,
+			Locator:      loc,
+			SuperUsers:   opts.SuperUsers,
+			SpamMsg:      opts.Message.Spam,
+			SpamDryMsg:   opts.Message.Dry,
+		}
+
+		srv.ChannelManager = channelManager
+		srv.ChannelBuilder = builder
+
+		// auto-start active channels
+		activeChannels, listErr := channelsStore.ListActive(ctx)
+		if listErr != nil {
+			log.Printf("[WARN] failed to list active channels for auto-start: %v", listErr)
+		}
+		for _, ch := range activeChannels {
+			chSettings, sErr := channelSettingsStore.Get(ctx, ch.GID)
+			if sErr != nil || chSettings == nil {
+				log.Printf("[WARN] can't get settings for channel gid=%s, skipping auto-start", ch.GID)
+				continue
+			}
+			if ch.BotID == 0 {
+				log.Printf("[WARN] no bot assigned to channel gid=%s, skipping auto-start", ch.GID)
+				continue
+			}
+			botInfo, bFindErr := botsStore.FindByID(ctx, ch.BotID)
+			if bFindErr != nil || botInfo == nil {
+				log.Printf("[WARN] can't find bot id=%d for channel gid=%s, skipping auto-start", ch.BotID, ch.GID)
+				continue
+			}
+			cfg, buildErr := builder.Build(ch, *chSettings, *botInfo)
+			if buildErr != nil {
+				log.Printf("[WARN] can't build config for channel gid=%s: %v, skipping auto-start", ch.GID, buildErr)
+				continue
+			}
+			if addErr := channelManager.AddChannel(cfg); addErr != nil {
+				log.Printf("[WARN] can't start channel gid=%s: %v", ch.GID, addErr)
+			}
+		}
+	}
+
+	// stop all channel listeners on context cancellation
+	if srv.ChannelManager != nil {
+		go func() {
+			<-ctx.Done()
+			srv.ChannelManager.StopAll()
+		}()
+	}
 
 	go func() {
 		if err := srv.Run(ctx); err != nil {

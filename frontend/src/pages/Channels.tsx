@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Settings, Radio } from 'lucide-react';
 import { channelsApi } from '@/api/channels';
+import { botsApi } from '@/api/bots';
 import { useChannelStore } from '@/store/channelStore';
-import type { Channel } from '@/types';
+import type { Bot, Channel } from '@/types';
 import { useNavigate } from 'react-router-dom';
 
 export default function Channels() {
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [bots, setBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ gid: '', telegram_id: '', name: '', username: '' });
+  const [form, setForm] = useState({ gid: '', telegram_id: '', name: '', username: '', bot_id: '0' });
   const navigate = useNavigate();
   const fetchChannels = useChannelStore((s) => s.fetchChannels);
 
@@ -17,8 +19,9 @@ export default function Channels() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const response = await channelsApi.list();
-        setChannels(response.data);
+        const [chResp, botResp] = await Promise.all([channelsApi.list(), botsApi.list()]);
+        setChannels(chResp.data);
+        setBots(botResp.data);
       } catch {
         // handle error
       } finally {
@@ -34,6 +37,7 @@ export default function Channels() {
       await channelsApi.create({
         gid: form.gid,
         telegram_id: parseInt(form.telegram_id),
+        bot_id: parseInt(form.bot_id),
         name: form.name,
         username: form.username,
         active: true,
@@ -41,7 +45,7 @@ export default function Channels() {
       const response = await channelsApi.list();
       setChannels(response.data);
       fetchChannels();
-      setForm({ gid: '', telegram_id: '', name: '', username: '' });
+      setForm({ gid: '', telegram_id: '', name: '', username: '', bot_id: '0' });
       setShowAdd(false);
     } catch {
       // handle error
@@ -126,6 +130,21 @@ export default function Channels() {
                 placeholder="@channel_username (optional)"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bot</label>
+              <select
+                value={form.bot_id}
+                onChange={(e) => setForm({ ...form, bot_id: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="0">No bot assigned</option>
+                {bots.filter((b) => b.active).map((bot) => (
+                  <option key={bot.id} value={bot.id}>
+                    {bot.name} {bot.username ? `(@${bot.username})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="col-span-2">
               <button
                 type="submit"
@@ -153,6 +172,10 @@ export default function Channels() {
                   <p className="text-sm text-gray-500">
                     {channel.username ? `@${channel.username} · ` : ''}
                     GID: {channel.gid} · TG ID: {channel.telegram_id}
+                    {channel.bot_id > 0 && (() => {
+                      const bot = bots.find((b) => b.id === channel.bot_id);
+                      return bot ? ` · Bot: ${bot.name}` : '';
+                    })()}
                   </p>
                 </div>
               </div>

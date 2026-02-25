@@ -53,6 +53,9 @@ type ChannelSettingsInfo struct {
 	SuppressJoinMessage  bool    `db:"suppress_join_message" json:"suppress_join_message"`
 	DeleteJoinMessages   bool    `db:"delete_join_messages" json:"delete_join_messages"`
 	DeleteLeaveMessages  bool    `db:"delete_leave_messages" json:"delete_leave_messages"`
+	AdminGroup           string  `db:"admin_group" json:"admin_group"`
+	OpenAIToken          string  `db:"openai_token" json:"openai_token"`
+	OpenAIAPIBase        string  `db:"openai_api_base" json:"openai_api_base"`
 }
 
 // channel settings command constants
@@ -96,7 +99,10 @@ var channelSettingsQueries = engine.NewQueryMap().
 			aggressive_cleanup_limit INTEGER NOT NULL DEFAULT 100,
 			suppress_join_message INTEGER NOT NULL DEFAULT 0,
 			delete_join_messages INTEGER NOT NULL DEFAULT 0,
-			delete_leave_messages INTEGER NOT NULL DEFAULT 0
+			delete_leave_messages INTEGER NOT NULL DEFAULT 0,
+			admin_group TEXT NOT NULL DEFAULT '',
+			openai_token TEXT NOT NULL DEFAULT '',
+			openai_api_base TEXT NOT NULL DEFAULT ''
 		)`,
 		Postgres: `CREATE TABLE IF NOT EXISTS channel_settings (
 			id SERIAL PRIMARY KEY,
@@ -131,7 +137,10 @@ var channelSettingsQueries = engine.NewQueryMap().
 			aggressive_cleanup_limit INTEGER NOT NULL DEFAULT 100,
 			suppress_join_message BOOLEAN NOT NULL DEFAULT false,
 			delete_join_messages BOOLEAN NOT NULL DEFAULT false,
-			delete_leave_messages BOOLEAN NOT NULL DEFAULT false
+			delete_leave_messages BOOLEAN NOT NULL DEFAULT false,
+			admin_group TEXT NOT NULL DEFAULT '',
+			openai_token TEXT NOT NULL DEFAULT '',
+			openai_api_base TEXT NOT NULL DEFAULT ''
 		)`,
 	}).
 	AddSame(CmdCreateChannelSettingsIndexes,
@@ -148,7 +157,7 @@ func NewChannelSettings(ctx context.Context, db *engine.SQL) (*ChannelSettings, 
 		Name:          "channel_settings",
 		CreateTable:   CmdCreateChannelSettingsTable,
 		CreateIndexes: CmdCreateChannelSettingsIndexes,
-		MigrateFunc:   func(_ context.Context, _ *sqlx.Tx, _ string) error { return nil },
+		MigrateFunc:   migrateChannelSettings,
 		QueriesMap:    channelSettingsQueries,
 	}
 	if err := engine.InitTable(ctx, db, cfg); err != nil {
@@ -216,7 +225,8 @@ func (cs *ChannelSettings) Update(ctx context.Context, s ChannelSettingsInfo) er
 		meta_forward = ?, meta_keyboard = ?, meta_username_symbols = ?, meta_giveaway = ?,
 		duplicates_threshold = ?, duplicates_window = ?, training_mode = ?, dry_mode = ?,
 		soft_ban = ?, no_spam_reply = ?, aggressive_cleanup = ?, aggressive_cleanup_limit = ?,
-		suppress_join_message = ?, delete_join_messages = ?, delete_leave_messages = ?
+		suppress_join_message = ?, delete_join_messages = ?, delete_leave_messages = ?,
+		admin_group = ?, openai_token = ?, openai_api_base = ?
 		WHERE gid = ?`)
 
 	_, err := cs.ExecContext(ctx, query,
@@ -228,6 +238,7 @@ func (cs *ChannelSettings) Update(ctx context.Context, s ChannelSettingsInfo) er
 		s.DuplicatesThreshold, s.DuplicatesWindow, s.TrainingMode, s.DryMode,
 		s.SoftBan, s.NoSpamReply, s.AggressiveCleanup, s.AggressiveCleanupLim,
 		s.SuppressJoinMessage, s.DeleteJoinMessages, s.DeleteLeaveMessages,
+		s.AdminGroup, s.OpenAIToken, s.OpenAIAPIBase,
 		s.GID)
 	if err != nil {
 		return fmt.Errorf("failed to update channel settings for gid=%s: %w", s.GID, err)
@@ -245,6 +256,31 @@ func (cs *ChannelSettings) Delete(ctx context.Context, gid string) error {
 	_, err := cs.ExecContext(ctx, query, gid)
 	if err != nil {
 		return fmt.Errorf("failed to delete channel settings for gid=%s: %w", gid, err)
+	}
+	return nil
+}
+
+// migrateChannelSettings adds admin_group, openai_token, openai_api_base columns if they don't exist
+func migrateChannelSettings(_ context.Context, tx *sqlx.Tx, _ string) error {
+	columns := []struct {
+		name string
+		def  string
+	}{
+		{"admin_group", "TEXT NOT NULL DEFAULT ''"},
+		{"openai_token", "TEXT NOT NULL DEFAULT ''"},
+		{"openai_api_base", "TEXT NOT NULL DEFAULT ''"},
+	}
+	for _, col := range columns {
+		var count int
+		checkQuery := fmt.Sprintf("SELECT COUNT(*) FROM channel_settings WHERE %s = '' OR %s IS NOT NULL", col.name, col.name)
+		if err := tx.Get(&count, checkQuery); err == nil {
+			continue // column already exists
+		}
+		alterQuery := fmt.Sprintf("ALTER TABLE channel_settings ADD COLUMN %s %s", col.name, col.def)
+		if _, err := tx.Exec(alterQuery); err != nil {
+			return fmt.Errorf("failed to add %s column to channel_settings: %w", col.name, err)
+		}
+		log.Printf("[INFO] channel_settings table migrated: added %s column", col.name)
 	}
 	return nil
 }
