@@ -52,12 +52,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   fetchMe: async () => {
-    set({ isLoading: true });
     try {
       const response = await authApi.me();
-      set({ user: response.data, isAuthenticated: true, isLoading: false });
+      set({ user: response.data, isAuthenticated: true });
     } catch {
-      set({ user: null, isAuthenticated: false, isLoading: false });
+      set({ user: null, isAuthenticated: false });
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
     }
