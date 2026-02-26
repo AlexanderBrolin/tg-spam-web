@@ -663,13 +663,14 @@ func activateServer(ctx context.Context, opts options, sf *bot.SpamFilter, loc *
 
 		channelManager := events.NewChannelManager()
 		builder := &events.ChannelBuilder{
-			SamplesStore:      samplesStore,
-			DictStore:         dictStore,
-			DetectedSpamStore: detectedSpamStore,
-			Locator:           loc,
-			SuperUsers:        opts.SuperUsers,
-			SpamMsg:           opts.Message.Spam,
-			SpamDryMsg:        opts.Message.Dry,
+			SamplesStore:       samplesStore,
+			DictStore:          dictStore,
+			DetectedSpamStore:  detectedSpamStore,
+			ApprovedUsersStore: approvedUsersStoreV2,
+			Locator:            loc,
+			SuperUsers:         opts.SuperUsers,
+			SpamMsg:            opts.Message.Spam,
+			SpamDryMsg:         opts.Message.Dry,
 		}
 
 		srv.ChannelManager = channelManager

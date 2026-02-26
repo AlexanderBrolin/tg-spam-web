@@ -13,16 +13,18 @@ import (
 
 	"github.com/umputun/tg-spam/app/bot"
 	"github.com/umputun/tg-spam/app/storage"
+	"github.com/umputun/tg-spam/lib/approved"
 	"github.com/umputun/tg-spam/lib/tgspam"
 )
 
 // ChannelBuilder constructs ChannelConfig from storage data and shared dependencies
 type ChannelBuilder struct {
-	SamplesStore      *storage.Samples
-	DictStore         *storage.Dictionary
-	DetectedSpamStore *storage.DetectedSpam
-	Locator           Locator
-	SuperUsers        SuperUsers
+	SamplesStore       *storage.Samples
+	DictStore          *storage.Dictionary
+	DetectedSpamStore  *storage.DetectedSpam
+	ApprovedUsersStore *storage.ApprovedUsers
+	Locator            Locator
+	SuperUsers         SuperUsers
 
 	// defaults for fields not in channel settings
 	SpamMsg    string
@@ -43,6 +45,16 @@ func (b *ChannelBuilder) Build(
 
 	// build per-channel detector from settings
 	detector := buildDetector(settings)
+
+	// load approved users for this channel into the detector
+	if b.ApprovedUsersStore != nil {
+		userStore := &approvedUsersGIDAdapter{store: b.ApprovedUsersStore, gid: ch.GID}
+		if count, err := detector.WithUserStorage(userStore); err != nil {
+			log.Printf("[WARN] can't load approved users for gid=%s: %v", ch.GID, err)
+		} else {
+			log.Printf("[INFO] loaded %d approved users for gid=%s", count, ch.GID)
+		}
+	}
 
 	// create per-channel SpamFilter wrapping the detector
 	spamBot := bot.NewSpamFilter(detector, bot.SpamConfig{
@@ -178,6 +190,24 @@ func buildDetector(s storage.ChannelSettingsInfo) *tgspam.Detector {
 	detector.WithMetaChecks(metaChecks...)
 
 	return detector
+}
+
+// approvedUsersGIDAdapter adapts ApprovedUsers storage to tgspam.UserStorage for a specific GID
+type approvedUsersGIDAdapter struct {
+	store *storage.ApprovedUsers
+	gid   string
+}
+
+func (a *approvedUsersGIDAdapter) Read(ctx context.Context) ([]approved.UserInfo, error) {
+	return a.store.ReadByGID(ctx, a.gid)
+}
+
+func (a *approvedUsersGIDAdapter) Write(ctx context.Context, user approved.UserInfo) error {
+	return a.store.WriteByGID(ctx, a.gid, user)
+}
+
+func (a *approvedUsersGIDAdapter) Delete(ctx context.Context, id string) error {
+	return a.store.DeleteByGID(ctx, a.gid, id)
 }
 
 // makeSpamLogger creates a SpamLogger that writes detected spam to the DB store
