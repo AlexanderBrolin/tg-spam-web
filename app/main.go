@@ -328,6 +328,17 @@ func execute(ctx context.Context, opts options) error {
 		if srvErr := activateServer(ctx, opts, spamBot, locator, dataDB); srvErr != nil {
 			return fmt.Errorf("can't activate web server, %w", srvErr)
 		}
+
+		// when per-channel management is active (JWT configured), all channel listeners
+		// are managed by ChannelManager. The legacy single-channel listener must not start
+		// because it would conflict with per-channel listeners sharing the same bot token
+		// (Telegram allows only one getUpdates connection per token).
+		if opts.Auth.JWTSecret != "" {
+			log.Printf("[INFO] per-channel management active, running in web server mode")
+			<-ctx.Done()
+			return nil
+		}
+
 		// if no telegram token and group set, just run the server
 		if opts.Telegram.Token == "" || opts.Telegram.Group == "" {
 			log.Printf("[WARN] no telegram token and group set, web server only mode")
