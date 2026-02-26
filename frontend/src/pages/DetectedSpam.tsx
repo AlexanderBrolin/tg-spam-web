@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ShieldAlert, Plus, Radio, UserCheck } from 'lucide-react';
+import { ShieldAlert, Plus, Radio, UserCheck, UserPlus } from 'lucide-react';
 import { spamApi } from '@/api/spam';
+import { usersApi } from '@/api/users';
 import { useChannelStore } from '@/store/channelStore';
 import type { DetectedSpamEntry } from '@/types';
 import { format } from 'date-fns';
@@ -9,6 +10,9 @@ export default function DetectedSpam() {
   const [entries, setEntries] = useState<DetectedSpamEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [unbanning, setUnbanning] = useState<number | null>(null);
+  const [approving, setApproving] = useState<number | null>(null);
+  const [unbannedIds, setUnbannedIds] = useState<Set<number>>(new Set());
+  const [approvedIds, setApprovedIds] = useState<Set<number>>(new Set());
   const selectedGid = useChannelStore((s) => s.selectedGid);
 
   useEffect(() => {
@@ -43,11 +47,24 @@ export default function DetectedSpam() {
     setUnbanning(entry.id);
     try {
       await spamApi.unban(selectedGid, entry.user_id);
-      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+      setUnbannedIds((prev) => new Set(prev).add(entry.id));
     } catch {
       // handle error
     } finally {
       setUnbanning(null);
+    }
+  };
+
+  const handleAddToApproved = async (entry: DetectedSpamEntry) => {
+    if (!selectedGid) return;
+    setApproving(entry.id);
+    try {
+      await usersApi.addApproved(selectedGid, String(entry.user_id), entry.user_name);
+      setApprovedIds((prev) => new Set(prev).add(entry.id));
+    } catch {
+      // handle error
+    } finally {
+      setApproving(null);
     }
   };
 
@@ -114,7 +131,7 @@ export default function DetectedSpam() {
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1">
                     {entry.added ? (
-                      <span className="text-xs text-green-600">Added</span>
+                      <span className="text-xs text-green-600">Added to samples</span>
                     ) : (
                       <button
                         onClick={() => handleAddToSamples(entry.id, entry.text)}
@@ -124,14 +141,30 @@ export default function DetectedSpam() {
                         Add to samples
                       </button>
                     )}
-                    <button
-                      onClick={() => handleUnban(entry)}
-                      disabled={unbanning === entry.id}
-                      className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
-                    >
-                      <UserCheck size={14} />
-                      {unbanning === entry.id ? 'Unbanning...' : 'Unban'}
-                    </button>
+                    {unbannedIds.has(entry.id) ? (
+                      <span className="text-xs text-green-600">Unbanned</span>
+                    ) : (
+                      <button
+                        onClick={() => handleUnban(entry)}
+                        disabled={unbanning === entry.id}
+                        className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
+                      >
+                        <UserCheck size={14} />
+                        {unbanning === entry.id ? 'Unbanning...' : 'Unban'}
+                      </button>
+                    )}
+                    {approvedIds.has(entry.id) ? (
+                      <span className="text-xs text-green-600">Approved</span>
+                    ) : (
+                      <button
+                        onClick={() => handleAddToApproved(entry)}
+                        disabled={approving === entry.id}
+                        className="inline-flex items-center gap-1 text-xs text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
+                      >
+                        <UserPlus size={14} />
+                        {approving === entry.id ? 'Adding...' : 'Add to approved'}
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
