@@ -6,28 +6,25 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 
+	"github.com/umputun/tg-spam/app/storage"
 	"github.com/umputun/tg-spam/app/storage/engine"
 )
 
 // getStatsHandler handles GET /api/v2/stats
 func (s *Server) getStatsHandler(w http.ResponseWriter, r *http.Request) {
-	entries, err := s.DetectedSpam.Read(r.Context())
+	gid := r.URL.Query().Get("gid")
+
+	var entries []storage.DetectedSpamInfo
+	var err error
+	if gid != "" {
+		entries, err = s.DetectedSpam.ReadByGID(r.Context(), gid)
+	} else {
+		entries, err = s.DetectedSpam.Read(r.Context())
+	}
 	if err != nil {
 		log.Printf("[ERROR] failed to read detected spam for stats: %v", err)
 		writeJSONError(w, http.StatusInternalServerError, "failed to get stats")
 		return
-	}
-
-	// apply gid filter
-	gid := r.URL.Query().Get("gid")
-	if gid != "" {
-		filtered := entries[:0]
-		for _, e := range entries {
-			if e.GID == gid {
-				filtered = append(filtered, e)
-			}
-		}
-		entries = filtered
 	}
 
 	now := time.Now()
@@ -59,7 +56,15 @@ func (s *Server) getStatsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	approvedUsers := s.Detector.ApprovedUsers()
+	// get approved users count from per-channel store when gid is provided, otherwise from global detector
+	var approvedUsersCount int
+	if gid != "" && s.ApprovedUsersStore != nil {
+		if users, auErr := s.ApprovedUsersStore.ReadByGID(r.Context(), gid); auErr == nil {
+			approvedUsersCount = len(users)
+		}
+	} else {
+		approvedUsersCount = len(s.Detector.ApprovedUsers())
+	}
 
 	// database info
 	var dbType string
@@ -76,7 +81,7 @@ func (s *Server) getStatsHandler(w http.ResponseWriter, r *http.Request) {
 		"today_spam":       todaySpam,
 		"week_spam":        weekSpam,
 		"added_to_samples": addedToSamples,
-		"approved_users":   len(approvedUsers),
+		"approved_users":   approvedUsersCount,
 		"by_detector":      byDetector,
 		"by_day":           byDay,
 		"uptime_seconds":   int64(uptime.Seconds()),
