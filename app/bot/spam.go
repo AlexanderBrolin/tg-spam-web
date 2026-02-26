@@ -78,13 +78,15 @@ func (s *SpamFilter) OnMessage(msg Message, checkOnly bool) (response Response) 
 	}
 	displayUsername := DisplayName(msg)
 
-	// include quoted/reply-to text in spam check - spammers use quotes from external channels to spread spam
-	// quote (TextQuote) takes precedence over ReplyTo.Text as it contains the actual quoted portion
+	// include quoted/reply-to text in spam check - spammers use quotes from external channels to spread spam.
+	// quote (TextQuote) takes precedence over ReplyTo.Text as it contains the actual quoted portion.
+	// skip ReplyTo.Text when reply is to a channel post (SenderChat.ID != 0) — in discussion groups
+	// every message is a reply to the channel post, and including that text skews the classifier score.
 	msgText := msg.Text
 	switch {
 	case msg.Quote != "":
 		msgText = msg.Text + "\n" + msg.Quote
-	case msg.ReplyTo.Text != "":
+	case msg.ReplyTo.Text != "" && msg.ReplyTo.SenderChat.ID == 0:
 		msgText = msg.Text + "\n" + msg.ReplyTo.Text
 	}
 
