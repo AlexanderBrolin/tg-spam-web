@@ -229,6 +229,8 @@ type ChannelManagerV2 interface {
 	RestartChannel(gid string, cfg events.ChannelConfig) error
 	StopAll()
 	Running() []string
+	GetChannelBot(gid string) events.Bot
+	UnbanUser(gid string, userID int64) error
 }
 
 // BotsStore provides access to bot data
@@ -306,6 +308,7 @@ func (s *Server) routesV2(router *routegroup.Bundle) {
 		// spam management
 		api.HandleFunc("GET /spam/detected", s.listDetectedSpamHandler)
 		api.HandleFunc("POST /spam/detected/{id}/add", s.addDetectedSpamToSamplesHandler)
+		api.HandleFunc("POST /spam/unban", s.unbanUserHandler)
 		api.HandleFunc("POST /spam/check", s.spamCheckHandler)
 
 		// approved users

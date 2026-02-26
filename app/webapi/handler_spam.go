@@ -116,6 +116,36 @@ func (s *Server) addDetectedSpamToSamplesHandler(w http.ResponseWriter, r *http.
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// unbanUserHandler handles POST /api/v2/spam/detected/{id}/unban
+func (s *Server) unbanUserHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		GID    string `json:"gid"`
+		UserID int64  `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.GID == "" || req.UserID == 0 {
+		writeJSONError(w, http.StatusBadRequest, "gid and user_id are required")
+		return
+	}
+
+	if s.ChannelManager == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "channel manager not available")
+		return
+	}
+
+	if err := s.ChannelManager.UnbanUser(req.GID, req.UserID); err != nil {
+		log.Printf("[ERROR] failed to unban user %d in channel %s: %v", req.UserID, req.GID, err)
+		writeJSONError(w, http.StatusInternalServerError, "failed to unban user")
+		return
+	}
+
+	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // spamCheckHandler handles POST /api/v2/spam/check
 func (s *Server) spamCheckHandler(w http.ResponseWriter, r *http.Request) {
 	var req spamcheck.Request

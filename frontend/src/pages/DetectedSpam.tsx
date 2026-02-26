@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ShieldAlert, Plus, Radio } from 'lucide-react';
+import { ShieldAlert, Plus, Radio, UserCheck } from 'lucide-react';
 import { spamApi } from '@/api/spam';
 import { useChannelStore } from '@/store/channelStore';
 import type { DetectedSpamEntry } from '@/types';
@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 export default function DetectedSpam() {
   const [entries, setEntries] = useState<DetectedSpamEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [unbanning, setUnbanning] = useState<number | null>(null);
   const selectedGid = useChannelStore((s) => s.selectedGid);
 
   useEffect(() => {
@@ -34,6 +35,19 @@ export default function DetectedSpam() {
       );
     } catch {
       // handle error
+    }
+  };
+
+  const handleUnban = async (entry: DetectedSpamEntry) => {
+    if (!selectedGid) return;
+    setUnbanning(entry.id);
+    try {
+      await spamApi.unban(selectedGid, entry.user_id);
+      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+    } catch {
+      // handle error
+    } finally {
+      setUnbanning(null);
     }
   };
 
@@ -98,17 +112,27 @@ export default function DetectedSpam() {
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  {entry.added ? (
-                    <span className="text-xs text-green-600">Added</span>
-                  ) : (
+                  <div className="flex flex-col gap-1">
+                    {entry.added ? (
+                      <span className="text-xs text-green-600">Added</span>
+                    ) : (
+                      <button
+                        onClick={() => handleAddToSamples(entry.id, entry.text)}
+                        className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        <Plus size={14} />
+                        Add to samples
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleAddToSamples(entry.id, entry.text)}
-                      className="inline-flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
+                      onClick={() => handleUnban(entry)}
+                      disabled={unbanning === entry.id}
+                      className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-medium disabled:opacity-50"
                     >
-                      <Plus size={14} />
-                      Add to samples
+                      <UserCheck size={14} />
+                      {unbanning === entry.id ? 'Unbanning...' : 'Unban'}
                     </button>
-                  )}
+                  </div>
                 </td>
               </tr>
             ))}

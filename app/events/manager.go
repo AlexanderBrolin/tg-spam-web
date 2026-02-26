@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"sync"
+
+	tbapi "github.com/OvyFlash/telegram-bot-api"
 )
 
 // ChannelConfig holds all parameters needed to start a listener for a channel
@@ -112,6 +115,46 @@ func (m *ChannelManager) StopAll() {
 
 	m.channels = make(map[string]*runningChannel)
 	log.Printf("[INFO] all channels stopped")
+}
+
+// GetChannelBot returns the Bot for a running channel, or nil if not found
+func (m *ChannelManager) GetChannelBot(gid string) Bot {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if rc, exists := m.channels[gid]; exists {
+		return rc.config.Bot
+	}
+	return nil
+}
+
+// UnbanUser unbans a user in the Telegram group for the specified channel
+func (m *ChannelManager) UnbanUser(gid string, userID int64) error {
+	m.mu.Lock()
+	rc, exists := m.channels[gid]
+	m.mu.Unlock()
+
+	if !exists {
+		return fmt.Errorf("channel %s is not running", gid)
+	}
+
+	chatID, err := strconv.ParseInt(rc.config.Group, 10, 64)
+	if err != nil {
+		return fmt.Errorf("can't parse group chat ID %q for channel %s: %w", rc.config.Group, gid, err)
+	}
+
+	cfg := tbapi.UnbanChatMemberConfig{
+		ChatMemberConfig: tbapi.ChatMemberConfig{
+			UserID:     userID,
+			ChatConfig: tbapi.ChatConfig{ChatID: chatID},
+		},
+		OnlyIfBanned: true,
+	}
+	if _, err := rc.config.TbAPI.Request(cfg); err != nil {
+		return fmt.Errorf("telegram unban failed for user %d in channel %s: %w", userID, gid, err)
+	}
+
+	log.Printf("[INFO] user %d unbanned via web admin in channel %s", userID, gid)
+	return nil
 }
 
 // Running returns list of running channel GIDs

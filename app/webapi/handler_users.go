@@ -70,6 +70,16 @@ func (s *Server) addApprovedUserHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// sync with running channel's detector in-memory map
+	if s.ChannelManager != nil {
+		if chBot := s.ChannelManager.GetChannelBot(req.GID); chBot != nil {
+			uid, _ := strconv.ParseInt(req.UserID, 10, 64)
+			if err := chBot.AddApprovedUser(uid, req.UserName); err != nil {
+				log.Printf("[WARN] failed to sync approved user to detector for gid=%s: %v", req.GID, err)
+			}
+		}
+	}
+
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -91,6 +101,16 @@ func (s *Server) removeApprovedUserHandler(w http.ResponseWriter, r *http.Reques
 		log.Printf("[ERROR] failed to remove approved user %s for gid=%s: %v", userID, gid, err)
 		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to remove approved user: %v", err))
 		return
+	}
+
+	// sync with running channel's detector in-memory map
+	if s.ChannelManager != nil {
+		if chBot := s.ChannelManager.GetChannelBot(gid); chBot != nil {
+			uid, _ := strconv.ParseInt(userID, 10, 64)
+			if err := chBot.RemoveApprovedUser(uid); err != nil {
+				log.Printf("[WARN] failed to sync approved user removal to detector for gid=%s: %v", gid, err)
+			}
+		}
 	}
 
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})
