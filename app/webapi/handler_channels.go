@@ -94,8 +94,21 @@ func (s *Server) updateChannelHandler(w http.ResponseWriter, r *http.Request) { 
 		return
 	}
 
+	// get existing channel to know its GID for listener restart
+	existing, findErr := s.ChannelsStore.FindByID(r.Context(), id)
+	if findErr != nil {
+		log.Printf("[ERROR] failed to find channel id=%d: %v", id, findErr)
+		writeJSONError(w, http.StatusInternalServerError, "failed to find channel")
+		return
+	}
+	if existing == nil {
+		writeJSONError(w, http.StatusNotFound, "channel not found")
+		return
+	}
+
 	if err := s.ChannelsStore.Update(r.Context(), storage.ChannelInfo{
 		ID:       id,
+		GID:      existing.GID,
 		Name:     req.Name,
 		Username: req.Username,
 		BotID:    req.BotID,
@@ -104,6 +117,11 @@ func (s *Server) updateChannelHandler(w http.ResponseWriter, r *http.Request) { 
 		log.Printf("[ERROR] failed to update channel id=%d: %v", id, err)
 		writeJSONError(w, http.StatusInternalServerError, "failed to update channel")
 		return
+	}
+
+	// restart listener with updated configuration
+	if restartErr := s.rebuildAndRestartChannel(r.Context(), existing.GID); restartErr != nil {
+		log.Printf("[WARN] channel updated but listener restart failed for gid=%s: %v", existing.GID, restartErr)
 	}
 
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})

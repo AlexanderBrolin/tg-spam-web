@@ -70,10 +70,17 @@ func (s *Server) createBotHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// validate token via Telegram API to get username
+	username, validateErr := validateBotToken(r.Context(), req.Token)
+	if validateErr != nil {
+		log.Printf("[WARN] bot token validation failed: %v", validateErr)
+	}
+
 	id, err := s.BotsStore.Create(r.Context(), storage.BotInfo{
-		Name:   req.Name,
-		Token:  req.Token,
-		Active: true,
+		Name:     req.Name,
+		Token:    req.Token,
+		Username: username,
+		Active:   true,
 	})
 	if err != nil {
 		log.Printf("[ERROR] failed to create bot: %v", err)
@@ -81,7 +88,7 @@ func (s *Server) createBotHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSONResponse(w, http.StatusCreated, map[string]int64{"id": id})
+	writeJSONResponse(w, http.StatusCreated, map[string]any{"id": id, "username": username})
 }
 
 // updateBotHandler handles PUT /api/v2/bots/{id}

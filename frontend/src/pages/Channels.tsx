@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Settings, Radio } from 'lucide-react';
+import { Plus, Trash2, Settings, Radio, Pencil, Check, X } from 'lucide-react';
 import { channelsApi } from '@/api/channels';
 import { botsApi } from '@/api/bots';
 import { useChannelStore } from '@/store/channelStore';
@@ -11,24 +11,27 @@ export default function Channels() {
   const [bots, setBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', username: '', bot_id: '0' });
   const [form, setForm] = useState({ gid: '', telegram_id: '', name: '', username: '', bot_id: '0' });
   const navigate = useNavigate();
   const fetchChannels = useChannelStore((s) => s.fetchChannels);
 
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [chResp, botResp] = await Promise.all([channelsApi.list(), botsApi.list()]);
+      setChannels(chResp.data || []);
+      setBots(botResp.data || []);
+    } catch {
+      // handle error
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [chResp, botResp] = await Promise.all([channelsApi.list(), botsApi.list()]);
-        setChannels(chResp.data || []);
-        setBots(botResp.data || []);
-      } catch {
-        // handle error
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+    loadData();
   }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -52,6 +55,36 @@ export default function Channels() {
     }
   };
 
+  const startEdit = (channel: Channel) => {
+    setEditingId(channel.id);
+    setEditForm({
+      name: channel.name,
+      username: channel.username || '',
+      bot_id: String(channel.bot_id || 0),
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleEdit = async (channel: Channel) => {
+    try {
+      await channelsApi.update(channel.id, {
+        name: editForm.name,
+        username: editForm.username,
+        bot_id: parseInt(editForm.bot_id),
+        active: channel.active,
+      });
+      const response = await channelsApi.list();
+      setChannels(response.data || []);
+      fetchChannels();
+      setEditingId(null);
+    } catch {
+      // handle error
+    }
+  };
+
   const handleDelete = async (id: number, gid: string) => {
     if (!confirm('Delete this channel and all its settings?')) return;
     try {
@@ -61,6 +94,13 @@ export default function Channels() {
     } catch {
       // handle error
     }
+  };
+
+  const getBotLabel = (botId: number) => {
+    if (botId === 0) return null;
+    const bot = bots.find((b) => b.id === botId);
+    if (!bot) return `Bot #${botId}`;
+    return bot.username ? `${bot.name} (@${bot.username})` : bot.name;
   };
 
   if (loading) {
@@ -160,47 +200,115 @@ export default function Channels() {
       <div className="grid gap-4">
         {channels.map((channel) => (
           <div key={channel.gid} className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  channel.active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'
-                }`}>
-                  <Radio size={24} />
+            {editingId === channel.id ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                    <input
+                      type="text"
+                      value={editForm.username}
+                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="@username (optional)"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bot</label>
+                    <select
+                      value={editForm.bot_id}
+                      onChange={(e) => setEditForm({ ...editForm, bot_id: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="0">No bot assigned</option>
+                      {bots.filter((b) => b.active).map((bot) => (
+                        <option key={bot.id} value={bot.id}>
+                          {bot.name} {bot.username ? `(@${bot.username})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{channel.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    {channel.username ? `@${channel.username} · ` : ''}
-                    GID: {channel.gid} · TG ID: {channel.telegram_id}
-                    {channel.bot_id > 0 && (() => {
-                      const bot = bots.find((b) => b.id === channel.bot_id);
-                      return bot ? ` · Bot: ${bot.name}` : '';
-                    })()}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">GID: {channel.gid} · TG ID: {channel.telegram_id}</span>
+                  <div className="ml-auto flex gap-2">
+                    <button
+                      onClick={() => handleEdit(channel)}
+                      className="inline-flex items-center gap-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                    >
+                      <Check size={14} /> Save
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                    >
+                      <X size={14} /> Cancel
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                  channel.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {channel.active ? 'Active' : 'Inactive'}
-                </span>
-                <button
-                  onClick={() => navigate(`/channels/${channel.gid}/settings`)}
-                  className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                  title="Settings"
-                >
-                  <Settings size={18} />
-                </button>
-                <button
-                  onClick={() => handleDelete(channel.id, channel.gid)}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 size={18} />
-                </button>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    channel.active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'
+                  }`}>
+                    <Radio size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{channel.name}</h3>
+                    <p className="text-sm text-gray-500">
+                      {channel.username ? `@${channel.username} · ` : ''}
+                      GID: {channel.gid} · TG ID: {channel.telegram_id}
+                      {channel.bot_id > 0 && (() => {
+                        const label = getBotLabel(channel.bot_id);
+                        return label ? ` · Bot: ${label}` : '';
+                      })()}
+                      {channel.bot_id === 0 && (
+                        <span className="text-amber-500"> · No bot assigned</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                    channel.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {channel.active ? 'Active' : 'Inactive'}
+                  </span>
+                  <button
+                    onClick={() => startEdit(channel)}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil size={18} />
+                  </button>
+                  <button
+                    onClick={() => navigate(`/channels/${channel.gid}/settings`)}
+                    className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                    title="Settings"
+                  >
+                    <Settings size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(channel.id, channel.gid)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ))}
         {channels.length === 0 && (
