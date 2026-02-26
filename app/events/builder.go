@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -128,6 +129,7 @@ func buildDetector(s storage.ChannelSettingsInfo) *tgspam.Detector {
 
 	if s.CASEnabled {
 		detectorConfig.CasAPI = "https://api.cas.chat"
+		detectorConfig.HTTPClient = &http.Client{Timeout: 5 * time.Second}
 	}
 
 	detector := tgspam.NewDetector(detectorConfig)
