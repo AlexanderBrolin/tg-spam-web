@@ -133,7 +133,7 @@ func (ds *DetectedSpam) SetAddedToSamplesFlag(ctx context.Context, id int64) err
 	return nil
 }
 
-// Read returns the latest detected spam entries, up to maxDetectedSpamEntries
+// Read returns the latest detected spam entries for this store's GID, up to maxDetectedSpamEntries
 func (ds *DetectedSpam) Read(ctx context.Context) ([]DetectedSpamInfo, error) {
 	ds.RLock()
 	defer ds.RUnlock()
@@ -141,6 +141,29 @@ func (ds *DetectedSpam) Read(ctx context.Context) ([]DetectedSpamInfo, error) {
 	query := ds.Adopt("SELECT * FROM detected_spam WHERE gid = ? ORDER BY timestamp DESC LIMIT ?")
 	var entries []DetectedSpamInfo
 	err := ds.SelectContext(ctx, &entries, query, ds.GID(), maxDetectedSpamEntries)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get detected spam entries: %w", err)
+	}
+
+	for i, entry := range entries {
+		var checks []spamcheck.Response
+		if err := json.Unmarshal([]byte(entry.ChecksJSON), &checks); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal checks for entry %d: %w", i, err)
+		}
+		entries[i].Checks = checks
+		entries[i].Timestamp = entry.Timestamp.Local()
+	}
+	return entries, nil
+}
+
+// ReadByGID returns the latest detected spam entries for the specified GID
+func (ds *DetectedSpam) ReadByGID(ctx context.Context, gid string) ([]DetectedSpamInfo, error) {
+	ds.RLock()
+	defer ds.RUnlock()
+
+	query := ds.Adopt("SELECT * FROM detected_spam WHERE gid = ? ORDER BY timestamp DESC LIMIT ?")
+	var entries []DetectedSpamInfo
+	err := ds.SelectContext(ctx, &entries, query, gid, maxDetectedSpamEntries)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get detected spam entries: %w", err)
 	}

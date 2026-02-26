@@ -7,28 +7,25 @@ import (
 
 	log "github.com/go-pkgz/lgr"
 
+	"github.com/umputun/tg-spam/app/storage"
 	"github.com/umputun/tg-spam/lib/spamcheck"
 )
 
 // listDetectedSpamHandler handles GET /api/v2/spam/detected
 func (s *Server) listDetectedSpamHandler(w http.ResponseWriter, r *http.Request) {
-	entries, err := s.DetectedSpam.Read(r.Context())
+	gid := r.URL.Query().Get("gid")
+
+	var entries []storage.DetectedSpamInfo
+	var err error
+	if gid != "" {
+		entries, err = s.DetectedSpam.ReadByGID(r.Context(), gid)
+	} else {
+		entries, err = s.DetectedSpam.Read(r.Context())
+	}
 	if err != nil {
 		log.Printf("[ERROR] failed to read detected spam: %v", err)
 		writeJSONError(w, http.StatusInternalServerError, "failed to read detected spam")
 		return
-	}
-
-	// apply gid filter if provided
-	gid := r.URL.Query().Get("gid")
-	if gid != "" {
-		filtered := entries[:0]
-		for _, e := range entries {
-			if e.GID == gid {
-				filtered = append(filtered, e)
-			}
-		}
-		entries = filtered
 	}
 
 	// apply classifier filter

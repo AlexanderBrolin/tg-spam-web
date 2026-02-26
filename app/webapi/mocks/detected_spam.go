@@ -21,6 +21,9 @@ import (
 //			ReadFunc: func(ctx context.Context) ([]storage.DetectedSpamInfo, error) {
 //				panic("mock out the Read method")
 //			},
+//			ReadByGIDFunc: func(ctx context.Context, gid string) ([]storage.DetectedSpamInfo, error) {
+//				panic("mock out the ReadByGID method")
+//			},
 //			SetAddedToSamplesFlagFunc: func(ctx context.Context, id int64) error {
 //				panic("mock out the SetAddedToSamplesFlag method")
 //			},
@@ -36,6 +39,9 @@ type DetectedSpamMock struct {
 
 	// ReadFunc mocks the Read method.
 	ReadFunc func(ctx context.Context) ([]storage.DetectedSpamInfo, error)
+
+	// ReadByGIDFunc mocks the ReadByGID method.
+	ReadByGIDFunc func(ctx context.Context, gid string) ([]storage.DetectedSpamInfo, error)
 
 	// SetAddedToSamplesFlagFunc mocks the SetAddedToSamplesFlag method.
 	SetAddedToSamplesFlagFunc func(ctx context.Context, id int64) error
@@ -54,6 +60,13 @@ type DetectedSpamMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 		}
+		// ReadByGID holds details about calls to the ReadByGID method.
+		ReadByGID []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Gid is the gid argument value.
+			Gid string
+		}
 		// SetAddedToSamplesFlag holds details about calls to the SetAddedToSamplesFlag method.
 		SetAddedToSamplesFlag []struct {
 			// Ctx is the ctx argument value.
@@ -64,6 +77,7 @@ type DetectedSpamMock struct {
 	}
 	lockFindByUserID          sync.RWMutex
 	lockRead                  sync.RWMutex
+	lockReadByGID             sync.RWMutex
 	lockSetAddedToSamplesFlag sync.RWMutex
 }
 
@@ -149,6 +163,49 @@ func (mock *DetectedSpamMock) ResetReadCalls() {
 	mock.lockRead.Unlock()
 }
 
+// ReadByGID calls ReadByGIDFunc.
+func (mock *DetectedSpamMock) ReadByGID(ctx context.Context, gid string) ([]storage.DetectedSpamInfo, error) {
+	if mock.ReadByGIDFunc == nil {
+		panic("DetectedSpamMock.ReadByGIDFunc: method is nil but DetectedSpam.ReadByGID was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Gid string
+	}{
+		Ctx: ctx,
+		Gid: gid,
+	}
+	mock.lockReadByGID.Lock()
+	mock.calls.ReadByGID = append(mock.calls.ReadByGID, callInfo)
+	mock.lockReadByGID.Unlock()
+	return mock.ReadByGIDFunc(ctx, gid)
+}
+
+// ReadByGIDCalls gets all the calls that were made to ReadByGID.
+// Check the length with:
+//
+//	len(mockedDetectedSpam.ReadByGIDCalls())
+func (mock *DetectedSpamMock) ReadByGIDCalls() []struct {
+	Ctx context.Context
+	Gid string
+} {
+	var calls []struct {
+		Ctx context.Context
+		Gid string
+	}
+	mock.lockReadByGID.RLock()
+	calls = mock.calls.ReadByGID
+	mock.lockReadByGID.RUnlock()
+	return calls
+}
+
+// ResetReadByGIDCalls reset all the calls that were made to ReadByGID.
+func (mock *DetectedSpamMock) ResetReadByGIDCalls() {
+	mock.lockReadByGID.Lock()
+	mock.calls.ReadByGID = nil
+	mock.lockReadByGID.Unlock()
+}
+
 // SetAddedToSamplesFlag calls SetAddedToSamplesFlagFunc.
 func (mock *DetectedSpamMock) SetAddedToSamplesFlag(ctx context.Context, id int64) error {
 	if mock.SetAddedToSamplesFlagFunc == nil {
@@ -201,6 +258,10 @@ func (mock *DetectedSpamMock) ResetCalls() {
 	mock.lockRead.Lock()
 	mock.calls.Read = nil
 	mock.lockRead.Unlock()
+
+	mock.lockReadByGID.Lock()
+	mock.calls.ReadByGID = nil
+	mock.lockReadByGID.Unlock()
 
 	mock.lockSetAddedToSamplesFlag.Lock()
 	mock.calls.SetAddedToSamplesFlag = nil

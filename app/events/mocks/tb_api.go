@@ -29,6 +29,9 @@ import (
 //			SendFunc: func(c tbapi.Chattable) (tbapi.Message, error) {
 //				panic("mock out the Send method")
 //			},
+//			StopReceivingUpdatesFunc: func()  {
+//				panic("mock out the StopReceivingUpdates method")
+//			},
 //		}
 //
 //		// use mockedTbAPI in code that requires events.TbAPI
@@ -50,6 +53,9 @@ type TbAPIMock struct {
 
 	// SendFunc mocks the Send method.
 	SendFunc func(c tbapi.Chattable) (tbapi.Message, error)
+
+	// StopReceivingUpdatesFunc mocks the StopReceivingUpdates method.
+	StopReceivingUpdatesFunc func()
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -78,12 +84,16 @@ type TbAPIMock struct {
 			// C is the c argument value.
 			C tbapi.Chattable
 		}
+		// StopReceivingUpdates holds details about calls to the StopReceivingUpdates method.
+		StopReceivingUpdates []struct {
+		}
 	}
 	lockGetChat               sync.RWMutex
 	lockGetChatAdministrators sync.RWMutex
 	lockGetUpdatesChan        sync.RWMutex
 	lockRequest               sync.RWMutex
 	lockSend                  sync.RWMutex
+	lockStopReceivingUpdates  sync.RWMutex
 }
 
 // GetChat calls GetChatFunc.
@@ -281,6 +291,40 @@ func (mock *TbAPIMock) ResetSendCalls() {
 	mock.lockSend.Unlock()
 }
 
+// StopReceivingUpdates calls StopReceivingUpdatesFunc.
+func (mock *TbAPIMock) StopReceivingUpdates() {
+	if mock.StopReceivingUpdatesFunc == nil {
+		panic("TbAPIMock.StopReceivingUpdatesFunc: method is nil but TbAPI.StopReceivingUpdates was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockStopReceivingUpdates.Lock()
+	mock.calls.StopReceivingUpdates = append(mock.calls.StopReceivingUpdates, callInfo)
+	mock.lockStopReceivingUpdates.Unlock()
+	mock.StopReceivingUpdatesFunc()
+}
+
+// StopReceivingUpdatesCalls gets all the calls that were made to StopReceivingUpdates.
+// Check the length with:
+//
+//	len(mockedTbAPI.StopReceivingUpdatesCalls())
+func (mock *TbAPIMock) StopReceivingUpdatesCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockStopReceivingUpdates.RLock()
+	calls = mock.calls.StopReceivingUpdates
+	mock.lockStopReceivingUpdates.RUnlock()
+	return calls
+}
+
+// ResetStopReceivingUpdatesCalls reset all the calls that were made to StopReceivingUpdates.
+func (mock *TbAPIMock) ResetStopReceivingUpdatesCalls() {
+	mock.lockStopReceivingUpdates.Lock()
+	mock.calls.StopReceivingUpdates = nil
+	mock.lockStopReceivingUpdates.Unlock()
+}
+
 // ResetCalls reset all the calls that were made to all mocked methods.
 func (mock *TbAPIMock) ResetCalls() {
 	mock.lockGetChat.Lock()
@@ -302,4 +346,8 @@ func (mock *TbAPIMock) ResetCalls() {
 	mock.lockSend.Lock()
 	mock.calls.Send = nil
 	mock.lockSend.Unlock()
+
+	mock.lockStopReceivingUpdates.Lock()
+	mock.calls.StopReceivingUpdates = nil
+	mock.lockStopReceivingUpdates.Unlock()
 }

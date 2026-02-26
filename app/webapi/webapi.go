@@ -153,6 +153,7 @@ type Locator interface {
 // DetectedSpam is a storage interface used to get detected spam messages and set added flag.
 type DetectedSpam interface {
 	Read(ctx context.Context) ([]storage.DetectedSpamInfo, error)
+	ReadByGID(ctx context.Context, gid string) ([]storage.DetectedSpamInfo, error)
 	SetAddedToSamplesFlag(ctx context.Context, id int64) error
 	FindByUserID(ctx context.Context, userID int64) (*storage.DetectedSpamInfo, error)
 }

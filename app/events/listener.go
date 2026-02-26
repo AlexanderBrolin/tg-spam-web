@@ -142,6 +142,7 @@ func (l *TelegramListener) Do(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			l.TbAPI.StopReceivingUpdates()
 			return fmt.Errorf("listener context canceled: %w", ctx.Err())
 
 		case update, ok := <-updates:

@@ -24,6 +24,7 @@ import (
 // TbAPI is an interface for telegram bot API, only subset of methods used
 type TbAPI interface {
 	GetUpdatesChan(config tbapi.UpdateConfig) tbapi.UpdatesChannel
+	StopReceivingUpdates()
 	Send(c tbapi.Chattable) (tbapi.Message, error)
 	Request(c tbapi.Chattable) (*tbapi.APIResponse, error)
 	GetChat(config tbapi.ChatInfoConfig) (tbapi.ChatFullInfo, error)
