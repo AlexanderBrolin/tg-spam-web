@@ -157,6 +157,19 @@ func (m *ChannelManager) UnbanUser(gid string, userID int64) error {
 	return nil
 }
 
+// ReloadAllSamples reloads samples and stop words for all running channel bots
+func (m *ChannelManager) ReloadAllSamples() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for gid, rc := range m.channels {
+		if err := rc.config.Bot.ReloadSamples(); err != nil {
+			log.Printf("[WARN] failed to reload samples for channel %s: %v", gid, err)
+		}
+	}
+	return nil
+}
+
 // Running returns list of running channel GIDs
 func (m *ChannelManager) Running() []string {
 	m.mu.Lock()

@@ -231,6 +231,7 @@ type ChannelManagerV2 interface {
 	Running() []string
 	GetChannelBot(gid string) events.Bot
 	UnbanUser(gid string, userID int64) error
+	ReloadAllSamples() error
 }
 
 // BotsStore provides access to bot data
@@ -416,6 +417,11 @@ func (s *Server) reloadDynamicSamplesHandler(w http.ResponseWriter, _ *http.Requ
 	if err := s.SpamFilter.ReloadSamples(); err != nil {
 		_ = rest.EncodeJSON(w, http.StatusInternalServerError, rest.JSON{"error": "can't reload samples", "details": err.Error()})
 		return
+	}
+	if s.ChannelManager != nil {
+		if err := s.ChannelManager.ReloadAllSamples(); err != nil {
+			log.Printf("[WARN] failed to reload channel samples: %v", err)
+		}
 	}
 	rest.RenderJSON(w, rest.JSON{"reloaded": true})
 }

@@ -27,6 +27,9 @@ import (
 //			OnMessageFunc: func(msg bot.Message, checkOnly bool) bot.Response {
 //				panic("mock out the OnMessage method")
 //			},
+//			ReloadSamplesFunc: func() error {
+//				panic("mock out the ReloadSamples method")
+//			},
 //			RemoveApprovedUserFunc: func(id int64) error {
 //				panic("mock out the RemoveApprovedUser method")
 //			},
@@ -54,6 +57,9 @@ type BotMock struct {
 
 	// OnMessageFunc mocks the OnMessage method.
 	OnMessageFunc func(msg bot.Message, checkOnly bool) bot.Response
+
+	// ReloadSamplesFunc mocks the ReloadSamples method.
+	ReloadSamplesFunc func() error
 
 	// RemoveApprovedUserFunc mocks the RemoveApprovedUser method.
 	RemoveApprovedUserFunc func(id int64) error
@@ -90,6 +96,9 @@ type BotMock struct {
 			// CheckOnly is the checkOnly argument value.
 			CheckOnly bool
 		}
+		// ReloadSamples holds details about calls to the ReloadSamples method.
+		ReloadSamples []struct {
+		}
 		// RemoveApprovedUser holds details about calls to the RemoveApprovedUser method.
 		RemoveApprovedUser []struct {
 			// ID is the id argument value.
@@ -110,6 +119,7 @@ type BotMock struct {
 	lockCheck              sync.RWMutex
 	lockIsApprovedUser     sync.RWMutex
 	lockOnMessage          sync.RWMutex
+	lockReloadSamples      sync.RWMutex
 	lockRemoveApprovedUser sync.RWMutex
 	lockUpdateHam          sync.RWMutex
 	lockUpdateSpam         sync.RWMutex
@@ -279,6 +289,40 @@ func (mock *BotMock) ResetOnMessageCalls() {
 	mock.lockOnMessage.Unlock()
 }
 
+// ReloadSamples calls ReloadSamplesFunc.
+func (mock *BotMock) ReloadSamples() error {
+	if mock.ReloadSamplesFunc == nil {
+		panic("BotMock.ReloadSamplesFunc: method is nil but Bot.ReloadSamples was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockReloadSamples.Lock()
+	mock.calls.ReloadSamples = append(mock.calls.ReloadSamples, callInfo)
+	mock.lockReloadSamples.Unlock()
+	return mock.ReloadSamplesFunc()
+}
+
+// ReloadSamplesCalls gets all the calls that were made to ReloadSamples.
+// Check the length with:
+//
+//	len(mockedBot.ReloadSamplesCalls())
+func (mock *BotMock) ReloadSamplesCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockReloadSamples.RLock()
+	calls = mock.calls.ReloadSamples
+	mock.lockReloadSamples.RUnlock()
+	return calls
+}
+
+// ResetReloadSamplesCalls reset all the calls that were made to ReloadSamples.
+func (mock *BotMock) ResetReloadSamplesCalls() {
+	mock.lockReloadSamples.Lock()
+	mock.calls.ReloadSamples = nil
+	mock.lockReloadSamples.Unlock()
+}
+
 // RemoveApprovedUser calls RemoveApprovedUserFunc.
 func (mock *BotMock) RemoveApprovedUser(id int64) error {
 	if mock.RemoveApprovedUserFunc == nil {
@@ -413,6 +457,10 @@ func (mock *BotMock) ResetCalls() {
 	mock.lockOnMessage.Lock()
 	mock.calls.OnMessage = nil
 	mock.lockOnMessage.Unlock()
+
+	mock.lockReloadSamples.Lock()
+	mock.calls.ReloadSamples = nil
+	mock.lockReloadSamples.Unlock()
 
 	mock.lockRemoveApprovedUser.Lock()
 	mock.calls.RemoveApprovedUser = nil

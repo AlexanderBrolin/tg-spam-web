@@ -76,6 +76,11 @@ func (s *Server) addDictionaryHandler(w http.ResponseWriter, r *http.Request) {
 	if err := s.SpamFilter.ReloadSamples(); err != nil {
 		log.Printf("[WARN] failed to reload samples after dictionary add: %v", err)
 	}
+	if s.ChannelManager != nil {
+		if err := s.ChannelManager.ReloadAllSamples(); err != nil {
+			log.Printf("[WARN] failed to reload channel samples after dictionary add: %v", err)
+		}
+	}
 
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})
 }
@@ -116,6 +121,11 @@ func (s *Server) deleteDictionaryHandler(w http.ResponseWriter, r *http.Request)
 	// reload samples to apply dictionary changes
 	if err := s.SpamFilter.ReloadSamples(); err != nil {
 		log.Printf("[WARN] failed to reload samples after dictionary delete: %v", err)
+	}
+	if s.ChannelManager != nil {
+		if err := s.ChannelManager.ReloadAllSamples(); err != nil {
+			log.Printf("[WARN] failed to reload channel samples after dictionary delete: %v", err)
+		}
 	}
 
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})

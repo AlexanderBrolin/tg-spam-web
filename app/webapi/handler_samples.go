@@ -116,5 +116,10 @@ func (s *Server) reloadSamplesHandler(w http.ResponseWriter, _ *http.Request) {
 		writeJSONError(w, http.StatusInternalServerError, "failed to reload samples")
 		return
 	}
+	if s.ChannelManager != nil {
+		if err := s.ChannelManager.ReloadAllSamples(); err != nil {
+			log.Printf("[WARN] failed to reload channel samples: %v", err)
+		}
+	}
 	writeJSONResponse(w, http.StatusOK, map[string]bool{"ok": true})
 }
