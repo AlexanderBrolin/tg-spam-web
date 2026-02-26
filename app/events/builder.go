@@ -61,10 +61,12 @@ func (b *ChannelBuilder) Build(
 	detector.WithSpamUpdater(storage.NewSampleUpdater(b.SamplesStore, storage.SampleTypeSpam, 0))
 	detector.WithHamUpdater(storage.NewSampleUpdater(b.SamplesStore, storage.SampleTypeHam, 0))
 
-	// determine group identifier for telegram
-	group := ch.Username
-	if group == "" {
-		group = fmt.Sprintf("%d", ch.TelegramID)
+	// determine group identifier for telegram.
+	// prefer TelegramID (explicit numeric ID of the group to monitor) over Username,
+	// because Username resolves to the channel itself, not the linked discussion group.
+	group := fmt.Sprintf("%d", ch.TelegramID)
+	if ch.TelegramID == 0 && ch.Username != "" {
+		group = ch.Username
 	}
 
 	// build spam logger that writes to detected_spam store
