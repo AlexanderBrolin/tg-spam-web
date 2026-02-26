@@ -192,7 +192,10 @@ func buildDetector(s storage.ChannelSettingsInfo) *tgspam.Detector {
 	return detector
 }
 
-// approvedUsersGIDAdapter adapts ApprovedUsers storage to tgspam.UserStorage for a specific GID
+// approvedUsersGIDAdapter adapts ApprovedUsers storage to tgspam.UserStorage for a specific GID.
+// Write and Delete are no-ops because the detector auto-writes on every non-spam message,
+// which would pollute the approved users list. DB writes/deletes are handled explicitly
+// by the web admin handlers via ApprovedUsersStore + Bot.AddApprovedUser/RemoveApprovedUser.
 type approvedUsersGIDAdapter struct {
 	store *storage.ApprovedUsers
 	gid   string
@@ -202,12 +205,12 @@ func (a *approvedUsersGIDAdapter) Read(ctx context.Context) ([]approved.UserInfo
 	return a.store.ReadByGID(ctx, a.gid)
 }
 
-func (a *approvedUsersGIDAdapter) Write(ctx context.Context, user approved.UserInfo) error {
-	return a.store.WriteByGID(ctx, a.gid, user)
+func (a *approvedUsersGIDAdapter) Write(_ context.Context, _ approved.UserInfo) error {
+	return nil
 }
 
-func (a *approvedUsersGIDAdapter) Delete(ctx context.Context, id string) error {
-	return a.store.DeleteByGID(ctx, a.gid, id)
+func (a *approvedUsersGIDAdapter) Delete(_ context.Context, _ string) error {
+	return nil
 }
 
 // makeSpamLogger creates a SpamLogger that writes detected spam to the DB store
