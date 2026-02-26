@@ -162,7 +162,7 @@ func (s *SpamFilter) OnMessage(msg Message, checkOnly bool) (response Response) 
 			ChannelID: msg.SenderChat.ID,
 		}
 	}
-	log.Printf("[DEBUG] user %s is not a spammer, %s", displayUsername, checkResultStr)
+	log.Printf("[INFO] user %s is not a spammer, checks: %s, msg: %q", displayUsername, checkResultStr, msgText)
 	return Response{CheckResults: checkResults} // not a spam
 }
 
