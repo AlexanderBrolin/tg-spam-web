@@ -26,15 +26,15 @@ type DetectedSpam struct {
 
 // DetectedSpamInfo represents information about a detected spam entry.
 type DetectedSpamInfo struct {
-	ID         int64                `db:"id"`
-	GID        string               `db:"gid"`
-	Text       string               `db:"text"`
-	UserID     int64                `db:"user_id"`
-	UserName   string               `db:"user_name"`
-	Timestamp  time.Time            `db:"timestamp"`
-	Added      bool                 `db:"added"`  // added to samples
-	ChecksJSON string               `db:"checks"` // store as JSON
-	Checks     []spamcheck.Response `db:"-"`      // don't store in DB directly
+	ID         int64                `db:"id" json:"id"`
+	GID        string               `db:"gid" json:"gid"`
+	Text       string               `db:"text" json:"text"`
+	UserID     int64                `db:"user_id" json:"user_id"`
+	UserName   string               `db:"user_name" json:"user_name"`
+	Timestamp  time.Time            `db:"timestamp" json:"timestamp"`
+	Added      bool                 `db:"added" json:"added"`
+	ChecksJSON string               `db:"checks" json:"-"`
+	Checks     []spamcheck.Response `db:"-" json:"checks"`
 }
 
 // detected spam query commands
