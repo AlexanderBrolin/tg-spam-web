@@ -1,8 +1,10 @@
 package events
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	tbapi "github.com/OvyFlash/telegram-bot-api"
@@ -15,10 +17,11 @@ import (
 
 // ChannelBuilder constructs ChannelConfig from storage data and shared dependencies
 type ChannelBuilder struct {
-	SamplesStore *storage.Samples
-	DictStore    *storage.Dictionary
-	Locator      Locator
-	SuperUsers   SuperUsers
+	SamplesStore      *storage.Samples
+	DictStore         *storage.Dictionary
+	DetectedSpamStore *storage.DetectedSpam
+	Locator           Locator
+	SuperUsers        SuperUsers
 
 	// defaults for fields not in channel settings
 	SpamMsg    string
@@ -64,12 +67,15 @@ func (b *ChannelBuilder) Build(
 		group = fmt.Sprintf("%d", ch.TelegramID)
 	}
 
+	// build spam logger that writes to detected_spam store
+	spamLogger := b.makeSpamLogger(ch.GID)
+
 	cfg := ChannelConfig{
 		GID:                    ch.GID,
 		Group:                  group,
 		AdminGroup:             settings.AdminGroup,
 		Bot:                    spamBot,
-		SpamLogger:             SpamLoggerFunc(func(_ *bot.Message, _ *bot.Response) {}), // no-op logger by default
+		SpamLogger:             spamLogger,
 		Locator:                b.Locator,
 		TbAPI:                  api,
 		BotUsername:            botInfo.Username,
@@ -168,4 +174,31 @@ func buildDetector(s storage.ChannelSettingsInfo) *tgspam.Detector {
 	detector.WithMetaChecks(metaChecks...)
 
 	return detector
+}
+
+// makeSpamLogger creates a SpamLogger that writes detected spam to the DB store
+func (b *ChannelBuilder) makeSpamLogger(gid string) SpamLogger {
+	if b.DetectedSpamStore == nil {
+		return SpamLoggerFunc(func(_ *bot.Message, _ *bot.Response) {})
+	}
+	return SpamLoggerFunc(func(msg *bot.Message, response *bot.Response) {
+		userName := msg.From.Username
+		if userName == "" {
+			userName = msg.From.DisplayName
+		}
+		text := strings.ReplaceAll(msg.Text, "\n", " ")
+		text = strings.TrimSpace(text)
+		log.Printf("[DEBUG] spam detected from %v in gid=%s, text: %s", msg.From, gid, text)
+
+		rec := storage.DetectedSpamInfo{
+			Text:      text,
+			UserID:    msg.From.ID,
+			UserName:  userName,
+			Timestamp: time.Now().In(time.Local),
+			GID:       gid,
+		}
+		if err := b.DetectedSpamStore.Write(context.Background(), rec, response.CheckResults); err != nil {
+			log.Printf("[WARN] can't write detected spam to db for gid=%s: %v", gid, err)
+		}
+	})
 }

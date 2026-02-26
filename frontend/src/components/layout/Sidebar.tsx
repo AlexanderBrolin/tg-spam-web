@@ -43,7 +43,10 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-white border-r border-gray-200 min-h-screen">
       <div className="p-6">
-        <h1 className="text-xl font-bold text-primary-600">TG-Spam Admin</h1>
+        <div className="flex items-center gap-2">
+          <ShieldAlert size={24} className="text-primary-600" />
+          <h1 className="text-xl font-bold text-primary-600">TG-Spam Admin</h1>
+        </div>
         <p className="text-xs text-gray-500 mt-1">Anti-Spam Management</p>
       </div>
       <nav className="px-3">
