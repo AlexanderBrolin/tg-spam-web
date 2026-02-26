@@ -161,7 +161,6 @@ func (s *Server) spamCheckHandler(w http.ResponseWriter, r *http.Request) {
 	// use per-channel detector if gid is provided and channel is running
 	if req.GID != "" && s.ChannelManager != nil {
 		if chBot := s.ChannelManager.GetChannelBot(req.GID); chBot != nil {
-			log.Printf("[INFO] spam check using per-channel detector for gid=%s", req.GID)
 			spam, checks := chBot.Check(req.Request)
 			writeJSONResponse(w, http.StatusOK, map[string]any{
 				"spam":   spam,
@@ -169,11 +168,9 @@ func (s *Server) spamCheckHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		log.Printf("[WARN] spam check: channel bot not found for gid=%s, falling back to global", req.GID)
 	}
 
 	// fallback to global detector
-	log.Printf("[INFO] spam check using global detector, gid=%q", req.GID)
 	spam, checks := s.Detector.Check(req.Request)
 	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"spam":   spam,
