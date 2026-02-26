@@ -148,14 +148,30 @@ func (s *Server) unbanUserHandler(w http.ResponseWriter, r *http.Request) {
 
 // spamCheckHandler handles POST /api/v2/spam/check
 func (s *Server) spamCheckHandler(w http.ResponseWriter, r *http.Request) {
-	var req spamcheck.Request
+	var req struct {
+		spamcheck.Request
+		GID string `json:"gid"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	req.CheckOnly = true
 
-	spam, checks := s.Detector.Check(req)
+	// use per-channel detector if gid is provided and channel is running
+	if req.GID != "" && s.ChannelManager != nil {
+		if chBot := s.ChannelManager.GetChannelBot(req.GID); chBot != nil {
+			spam, checks := chBot.Check(req.Request)
+			writeJSONResponse(w, http.StatusOK, map[string]any{
+				"spam":   spam,
+				"checks": checks,
+			})
+			return
+		}
+	}
+
+	// fallback to global detector
+	spam, checks := s.Detector.Check(req.Request)
 	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"spam":   spam,
 		"checks": checks,

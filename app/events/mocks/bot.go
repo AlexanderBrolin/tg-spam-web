@@ -5,6 +5,7 @@ package mocks
 
 import (
 	"github.com/umputun/tg-spam/app/bot"
+	"github.com/umputun/tg-spam/lib/spamcheck"
 	"sync"
 )
 
@@ -16,6 +17,9 @@ import (
 //		mockedBot := &BotMock{
 //			AddApprovedUserFunc: func(id int64, name string) error {
 //				panic("mock out the AddApprovedUser method")
+//			},
+//			CheckFunc: func(request spamcheck.Request) (bool, []spamcheck.Response) {
+//				panic("mock out the Check method")
 //			},
 //			IsApprovedUserFunc: func(userID int64) bool {
 //				panic("mock out the IsApprovedUser method")
@@ -42,6 +46,9 @@ type BotMock struct {
 	// AddApprovedUserFunc mocks the AddApprovedUser method.
 	AddApprovedUserFunc func(id int64, name string) error
 
+	// CheckFunc mocks the Check method.
+	CheckFunc func(request spamcheck.Request) (bool, []spamcheck.Response)
+
 	// IsApprovedUserFunc mocks the IsApprovedUser method.
 	IsApprovedUserFunc func(userID int64) bool
 
@@ -65,6 +72,11 @@ type BotMock struct {
 			ID int64
 			// Name is the name argument value.
 			Name string
+		}
+		// Check holds details about calls to the Check method.
+		Check []struct {
+			// Request is the request argument value.
+			Request spamcheck.Request
 		}
 		// IsApprovedUser holds details about calls to the IsApprovedUser method.
 		IsApprovedUser []struct {
@@ -95,6 +107,7 @@ type BotMock struct {
 		}
 	}
 	lockAddApprovedUser    sync.RWMutex
+	lockCheck              sync.RWMutex
 	lockIsApprovedUser     sync.RWMutex
 	lockOnMessage          sync.RWMutex
 	lockRemoveApprovedUser sync.RWMutex
@@ -143,6 +156,45 @@ func (mock *BotMock) ResetAddApprovedUserCalls() {
 	mock.lockAddApprovedUser.Lock()
 	mock.calls.AddApprovedUser = nil
 	mock.lockAddApprovedUser.Unlock()
+}
+
+// Check calls CheckFunc.
+func (mock *BotMock) Check(request spamcheck.Request) (bool, []spamcheck.Response) {
+	if mock.CheckFunc == nil {
+		panic("BotMock.CheckFunc: method is nil but Bot.Check was just called")
+	}
+	callInfo := struct {
+		Request spamcheck.Request
+	}{
+		Request: request,
+	}
+	mock.lockCheck.Lock()
+	mock.calls.Check = append(mock.calls.Check, callInfo)
+	mock.lockCheck.Unlock()
+	return mock.CheckFunc(request)
+}
+
+// CheckCalls gets all the calls that were made to Check.
+// Check the length with:
+//
+//	len(mockedBot.CheckCalls())
+func (mock *BotMock) CheckCalls() []struct {
+	Request spamcheck.Request
+} {
+	var calls []struct {
+		Request spamcheck.Request
+	}
+	mock.lockCheck.RLock()
+	calls = mock.calls.Check
+	mock.lockCheck.RUnlock()
+	return calls
+}
+
+// ResetCheckCalls reset all the calls that were made to Check.
+func (mock *BotMock) ResetCheckCalls() {
+	mock.lockCheck.Lock()
+	mock.calls.Check = nil
+	mock.lockCheck.Unlock()
 }
 
 // IsApprovedUser calls IsApprovedUserFunc.
@@ -349,6 +401,10 @@ func (mock *BotMock) ResetCalls() {
 	mock.lockAddApprovedUser.Lock()
 	mock.calls.AddApprovedUser = nil
 	mock.lockAddApprovedUser.Unlock()
+
+	mock.lockCheck.Lock()
+	mock.calls.Check = nil
+	mock.lockCheck.Unlock()
 
 	mock.lockIsApprovedUser.Lock()
 	mock.calls.IsApprovedUser = nil

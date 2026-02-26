@@ -25,6 +25,6 @@ export const spamApi = {
   unban: (gid: string, userId: number) =>
     apiClient.post('/spam/unban', { gid, user_id: userId }),
 
-  check: (text: string) =>
-    apiClient.post<SpamCheckResponse>('/spam/check', { msg: text, check_only: true }),
+  check: (text: string, gid?: string) =>
+    apiClient.post<SpamCheckResponse>('/spam/check', { msg: text, check_only: true, gid }),
 };

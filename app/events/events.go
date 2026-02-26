@@ -73,6 +73,7 @@ type Bot interface {
 	AddApprovedUser(id int64, name string) error
 	RemoveApprovedUser(id int64) error
 	IsApprovedUser(userID int64) bool
+	Check(request spamcheck.Request) (bool, []spamcheck.Response)
 }
 
 // escapeMarkDownV1Text escapes special characters used in Telegram's MarkdownV1 parse mode.

@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Radio } from 'lucide-react';
 import { spamApi } from '@/api/spam';
+import { useChannelStore } from '@/store/channelStore';
 import type { SpamCheck as SpamCheckType } from '@/types';
 
 export default function SpamCheck() {
   const [text, setText] = useState('');
   const [results, setResults] = useState<SpamCheckType[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const selectedGid = useChannelStore((s) => s.selectedGid);
 
   const handleCheck = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -14,7 +16,7 @@ export default function SpamCheck() {
 
     setLoading(true);
     try {
-      const response = await spamApi.check(text);
+      const response = await spamApi.check(text, selectedGid || undefined);
       setResults(response.data.checks || []);
     } catch {
       // handle error
@@ -24,6 +26,15 @@ export default function SpamCheck() {
   };
 
   const isSpam = results?.some((r) => r.spam);
+
+  if (!selectedGid) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+        <Radio size={48} className="mb-3 opacity-30" />
+        <p className="text-sm">Select a channel in the sidebar to check messages</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
