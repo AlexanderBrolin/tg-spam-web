@@ -14,9 +14,9 @@ interface SpamCheckResponse {
 }
 
 export const spamApi = {
-  getDetected: (gid: string, page = 1, perPage = 50) =>
+  getDetected: (gid: string, page = 1, perPage = 50, from?: string, to?: string) =>
     apiClient.get<DetectedSpamResponse>('/spam/detected', {
-      params: { gid, page, per_page: perPage },
+      params: { gid, page, per_page: perPage, from, to },
     }),
 
   addToSamples: (id: number, msg: string) =>

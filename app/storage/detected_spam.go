@@ -179,6 +179,29 @@ func (ds *DetectedSpam) ReadByGID(ctx context.Context, gid string) ([]DetectedSp
 	return entries, nil
 }
 
+// ReadByGIDAndDateRange returns detected spam entries for the specified GID within the given date range
+func (ds *DetectedSpam) ReadByGIDAndDateRange(ctx context.Context, gid string, from, to time.Time) ([]DetectedSpamInfo, error) {
+	ds.RLock()
+	defer ds.RUnlock()
+
+	query := ds.Adopt("SELECT * FROM detected_spam WHERE gid = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT ?")
+	var entries []DetectedSpamInfo
+	err := ds.SelectContext(ctx, &entries, query, gid, from, to, maxDetectedSpamEntries)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get detected spam entries: %w", err)
+	}
+
+	for i, entry := range entries {
+		var checks []spamcheck.Response
+		if err := json.Unmarshal([]byte(entry.ChecksJSON), &checks); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal checks for entry %d: %w", i, err)
+		}
+		entries[i].Checks = checks
+		entries[i].Timestamp = entry.Timestamp.Local()
+	}
+	return entries, nil
+}
+
 // FindByUserID returns the latest detected spam entry for the given user ID
 func (ds *DetectedSpam) FindByUserID(ctx context.Context, userID int64) (*DetectedSpamInfo, error) {
 	ds.RLock()

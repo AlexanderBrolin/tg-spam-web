@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	log "github.com/go-pkgz/lgr"
 
@@ -15,10 +16,33 @@ import (
 func (s *Server) listDetectedSpamHandler(w http.ResponseWriter, r *http.Request) {
 	gid := r.URL.Query().Get("gid")
 
+	// parse date range, default to current calendar week (Monday to Sunday)
+	now := time.Now()
+	weekday := now.Weekday()
+	if weekday == time.Sunday {
+		weekday = 7
+	}
+	mondayOffset := int(weekday) - int(time.Monday)
+	defaultFrom := time.Date(now.Year(), now.Month(), now.Day()-mondayOffset, 0, 0, 0, 0, now.Location())
+	defaultTo := now
+
+	from := defaultFrom
+	if fromStr := r.URL.Query().Get("from"); fromStr != "" {
+		if parsed, pErr := time.ParseInLocation("2006-01-02", fromStr, now.Location()); pErr == nil {
+			from = parsed
+		}
+	}
+	to := defaultTo
+	if toStr := r.URL.Query().Get("to"); toStr != "" {
+		if parsed, pErr := time.ParseInLocation("2006-01-02", toStr, now.Location()); pErr == nil {
+			to = time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 23, 59, 59, 0, now.Location())
+		}
+	}
+
 	var entries []storage.DetectedSpamInfo
 	var err error
 	if gid != "" {
-		entries, err = s.DetectedSpam.ReadByGID(r.Context(), gid)
+		entries, err = s.DetectedSpam.ReadByGIDAndDateRange(r.Context(), gid, from, to)
 	} else {
 		entries, err = s.DetectedSpam.Read(r.Context())
 	}

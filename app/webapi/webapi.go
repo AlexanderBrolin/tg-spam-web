@@ -154,6 +154,7 @@ type Locator interface {
 type DetectedSpam interface {
 	Read(ctx context.Context) ([]storage.DetectedSpamInfo, error)
 	ReadByGID(ctx context.Context, gid string) ([]storage.DetectedSpamInfo, error)
+	ReadByGIDAndDateRange(ctx context.Context, gid string, from, to time.Time) ([]storage.DetectedSpamInfo, error)
 	SetAddedToSamplesFlag(ctx context.Context, id int64) error
 	FindByUserID(ctx context.Context, userID int64) (*storage.DetectedSpamInfo, error)
 }

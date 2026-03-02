@@ -4,7 +4,16 @@ import { spamApi } from '@/api/spam';
 import { usersApi } from '@/api/users';
 import { useChannelStore } from '@/store/channelStore';
 import type { DetectedSpamEntry } from '@/types';
-import { format } from 'date-fns';
+import { format, startOfWeek } from 'date-fns';
+
+function getDefaultFrom(): string {
+  const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+  return format(monday, 'yyyy-MM-dd');
+}
+
+function getDefaultTo(): string {
+  return format(new Date(), 'yyyy-MM-dd');
+}
 
 export default function DetectedSpam() {
   const [entries, setEntries] = useState<DetectedSpamEntry[]>([]);
@@ -13,6 +22,8 @@ export default function DetectedSpam() {
   const [approving, setApproving] = useState<number | null>(null);
   const [unbannedIds, setUnbannedIds] = useState<Set<number>>(new Set());
   const [approvedIds, setApprovedIds] = useState<Set<number>>(new Set());
+  const [dateFrom, setDateFrom] = useState(getDefaultFrom);
+  const [dateTo, setDateTo] = useState(getDefaultTo);
   const selectedGid = useChannelStore((s) => s.selectedGid);
 
   useEffect(() => {
@@ -20,7 +31,7 @@ export default function DetectedSpam() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const response = await spamApi.getDetected(selectedGid);
+        const response = await spamApi.getDetected(selectedGid, 1, 500, dateFrom, dateTo);
         setEntries(response.data.entries || []);
       } catch {
         // handle error
@@ -29,7 +40,7 @@ export default function DetectedSpam() {
       }
     };
     fetchData();
-  }, [selectedGid]);
+  }, [selectedGid, dateFrom, dateTo]);
 
   const handleAddToSamples = async (id: number, text: string) => {
     try {
@@ -87,9 +98,27 @@ export default function DetectedSpam() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Detected Spam</h2>
-        <span className="text-sm text-gray-500">{entries.length} entries</span>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-gray-900">Detected Spam</h2>
+          <span className="text-sm text-gray-500">{entries.length} entries</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <label className="text-gray-500">From</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="border border-gray-300 rounded-md px-2 py-1 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          />
+          <label className="text-gray-500">To</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="border border-gray-300 rounded-md px-2 py-1 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          />
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -113,7 +142,7 @@ export default function DetectedSpam() {
                   {entry.user_name}
                   <span className="block text-xs text-gray-400">ID: {entry.user_id}</span>
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-700 max-w-md truncate">
+                <td className="px-4 py-3 text-sm text-gray-700 max-w-md whitespace-pre-wrap break-words">
                   {entry.text}
                 </td>
                 <td className="px-4 py-3">

@@ -7,6 +7,7 @@ import (
 	"context"
 	"github.com/umputun/tg-spam/app/storage"
 	"sync"
+	"time"
 )
 
 // DetectedSpamMock is a mock implementation of webapi.DetectedSpam.
@@ -23,6 +24,9 @@ import (
 //			},
 //			ReadByGIDFunc: func(ctx context.Context, gid string) ([]storage.DetectedSpamInfo, error) {
 //				panic("mock out the ReadByGID method")
+//			},
+//			ReadByGIDAndDateRangeFunc: func(ctx context.Context, gid string, from time.Time, to time.Time) ([]storage.DetectedSpamInfo, error) {
+//				panic("mock out the ReadByGIDAndDateRange method")
 //			},
 //			SetAddedToSamplesFlagFunc: func(ctx context.Context, id int64) error {
 //				panic("mock out the SetAddedToSamplesFlag method")
@@ -42,6 +46,9 @@ type DetectedSpamMock struct {
 
 	// ReadByGIDFunc mocks the ReadByGID method.
 	ReadByGIDFunc func(ctx context.Context, gid string) ([]storage.DetectedSpamInfo, error)
+
+	// ReadByGIDAndDateRangeFunc mocks the ReadByGIDAndDateRange method.
+	ReadByGIDAndDateRangeFunc func(ctx context.Context, gid string, from time.Time, to time.Time) ([]storage.DetectedSpamInfo, error)
 
 	// SetAddedToSamplesFlagFunc mocks the SetAddedToSamplesFlag method.
 	SetAddedToSamplesFlagFunc func(ctx context.Context, id int64) error
@@ -67,6 +74,17 @@ type DetectedSpamMock struct {
 			// Gid is the gid argument value.
 			Gid string
 		}
+		// ReadByGIDAndDateRange holds details about calls to the ReadByGIDAndDateRange method.
+		ReadByGIDAndDateRange []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Gid is the gid argument value.
+			Gid string
+			// From is the from argument value.
+			From time.Time
+			// To is the to argument value.
+			To time.Time
+		}
 		// SetAddedToSamplesFlag holds details about calls to the SetAddedToSamplesFlag method.
 		SetAddedToSamplesFlag []struct {
 			// Ctx is the ctx argument value.
@@ -78,6 +96,7 @@ type DetectedSpamMock struct {
 	lockFindByUserID          sync.RWMutex
 	lockRead                  sync.RWMutex
 	lockReadByGID             sync.RWMutex
+	lockReadByGIDAndDateRange sync.RWMutex
 	lockSetAddedToSamplesFlag sync.RWMutex
 }
 
@@ -206,6 +225,57 @@ func (mock *DetectedSpamMock) ResetReadByGIDCalls() {
 	mock.lockReadByGID.Unlock()
 }
 
+// ReadByGIDAndDateRange calls ReadByGIDAndDateRangeFunc.
+func (mock *DetectedSpamMock) ReadByGIDAndDateRange(ctx context.Context, gid string, from time.Time, to time.Time) ([]storage.DetectedSpamInfo, error) {
+	if mock.ReadByGIDAndDateRangeFunc == nil {
+		panic("DetectedSpamMock.ReadByGIDAndDateRangeFunc: method is nil but DetectedSpam.ReadByGIDAndDateRange was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		Gid  string
+		From time.Time
+		To   time.Time
+	}{
+		Ctx:  ctx,
+		Gid:  gid,
+		From: from,
+		To:   to,
+	}
+	mock.lockReadByGIDAndDateRange.Lock()
+	mock.calls.ReadByGIDAndDateRange = append(mock.calls.ReadByGIDAndDateRange, callInfo)
+	mock.lockReadByGIDAndDateRange.Unlock()
+	return mock.ReadByGIDAndDateRangeFunc(ctx, gid, from, to)
+}
+
+// ReadByGIDAndDateRangeCalls gets all the calls that were made to ReadByGIDAndDateRange.
+// Check the length with:
+//
+//	len(mockedDetectedSpam.ReadByGIDAndDateRangeCalls())
+func (mock *DetectedSpamMock) ReadByGIDAndDateRangeCalls() []struct {
+	Ctx  context.Context
+	Gid  string
+	From time.Time
+	To   time.Time
+} {
+	var calls []struct {
+		Ctx  context.Context
+		Gid  string
+		From time.Time
+		To   time.Time
+	}
+	mock.lockReadByGIDAndDateRange.RLock()
+	calls = mock.calls.ReadByGIDAndDateRange
+	mock.lockReadByGIDAndDateRange.RUnlock()
+	return calls
+}
+
+// ResetReadByGIDAndDateRangeCalls reset all the calls that were made to ReadByGIDAndDateRange.
+func (mock *DetectedSpamMock) ResetReadByGIDAndDateRangeCalls() {
+	mock.lockReadByGIDAndDateRange.Lock()
+	mock.calls.ReadByGIDAndDateRange = nil
+	mock.lockReadByGIDAndDateRange.Unlock()
+}
+
 // SetAddedToSamplesFlag calls SetAddedToSamplesFlagFunc.
 func (mock *DetectedSpamMock) SetAddedToSamplesFlag(ctx context.Context, id int64) error {
 	if mock.SetAddedToSamplesFlagFunc == nil {
@@ -262,6 +332,10 @@ func (mock *DetectedSpamMock) ResetCalls() {
 	mock.lockReadByGID.Lock()
 	mock.calls.ReadByGID = nil
 	mock.lockReadByGID.Unlock()
+
+	mock.lockReadByGIDAndDateRange.Lock()
+	mock.calls.ReadByGIDAndDateRange = nil
+	mock.lockReadByGIDAndDateRange.Unlock()
 
 	mock.lockSetAddedToSamplesFlag.Lock()
 	mock.calls.SetAddedToSamplesFlag = nil
