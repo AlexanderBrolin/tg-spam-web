@@ -514,6 +514,9 @@ func TestSpamFilter_OnMessage(t *testing.T) {
 					}
 					return true, []spamcheck.Response{{Name: "test", Spam: true, Details: "spam"}}
 				},
+				IsApprovedUserFunc: func(userID string) bool {
+					return false
+				},
 			}
 
 			s := NewSpamFilter(det, SpamConfig{
@@ -532,6 +535,55 @@ func TestSpamFilter_OnMessage(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("approved From.ID with SenderChat bypasses all checks", func(t *testing.T) {
+		det := &mocks.DetectorMock{
+			CheckFunc: func(req spamcheck.Request) (bool, []spamcheck.Response) {
+				t.Fatal("Check should not be called for approved user")
+				return false, nil
+			},
+			IsApprovedUserFunc: func(userID string) bool {
+				return userID == "777000"
+			},
+		}
+
+		s := NewSpamFilter(det, SpamConfig{SpamMsg: "detected"})
+
+		msg := Message{
+			Text:       "channel auto-forward message",
+			From:       User{ID: 777000, Username: "Telegram"},
+			SenderChat: SenderChat{ID: -1001261918100, UserName: "some_channel"},
+		}
+		got := s.OnMessage(msg, false)
+		assert.Equal(t, Response{}, got)
+		assert.Empty(t, det.CheckCalls())
+		assert.Len(t, det.IsApprovedUserCalls(), 1)
+		assert.Equal(t, "777000", det.IsApprovedUserCalls()[0].UserID)
+	})
+
+	t.Run("non-approved From.ID with SenderChat proceeds to spam check", func(t *testing.T) {
+		det := &mocks.DetectorMock{
+			CheckFunc: func(req spamcheck.Request) (bool, []spamcheck.Response) {
+				assert.Equal(t, "-1001261918100", req.UserID)
+				assert.Equal(t, "some_channel", req.UserName)
+				return true, []spamcheck.Response{{Name: "test", Spam: true, Details: "spam"}}
+			},
+			IsApprovedUserFunc: func(userID string) bool {
+				return false
+			},
+		}
+
+		s := NewSpamFilter(det, SpamConfig{SpamMsg: "detected"})
+
+		msg := Message{
+			Text:       "spam from channel",
+			From:       User{ID: 777000, Username: "Telegram"},
+			SenderChat: SenderChat{ID: -1001261918100, UserName: "some_channel"},
+		}
+		got := s.OnMessage(msg, false)
+		assert.True(t, got.Send)
+		assert.Len(t, det.CheckCalls(), 1)
+	})
 }
 
 func TestSpamFilter_UpdateSpam(t *testing.T) {

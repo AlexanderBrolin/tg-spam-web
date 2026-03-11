@@ -76,6 +76,14 @@ func (s *SpamFilter) OnMessage(msg Message, checkOnly bool) (response Response) 
 	if msg.From.ID == 0 { // don't check system messages
 		return Response{}
 	}
+
+	// check if the original sender is unconditionally approved before SenderChat override.
+	// this is needed for shared Telegram system IDs (e.g., 777000) where SenderChat.ID replaces
+	// From.ID for spam checking, making the standard approved user lookup in the detector ineffective.
+	if s.IsApprovedUser(msg.From.ID) {
+		return Response{}
+	}
+
 	displayUsername := DisplayName(msg)
 
 	// include quoted/reply-to text in spam check - spammers use quotes from external channels to spread spam.
