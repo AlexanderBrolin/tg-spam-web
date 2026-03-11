@@ -561,6 +561,32 @@ func TestSpamFilter_OnMessage(t *testing.T) {
 		assert.Equal(t, "777000", det.IsApprovedUserCalls()[0].UserID)
 	})
 
+	t.Run("approved SenderChat.ID bypasses all checks", func(t *testing.T) {
+		det := &mocks.DetectorMock{
+			CheckFunc: func(req spamcheck.Request) (bool, []spamcheck.Response) {
+				t.Fatal("Check should not be called for approved channel")
+				return false, nil
+			},
+			IsApprovedUserFunc: func(userID string) bool {
+				return userID == "-1001261918100"
+			},
+		}
+
+		s := NewSpamFilter(det, SpamConfig{SpamMsg: "detected"})
+
+		msg := Message{
+			Text:       "channel auto-forward message",
+			From:       User{ID: 777000, Username: "Telegram"},
+			SenderChat: SenderChat{ID: -1001261918100, UserName: "some_channel"},
+		}
+		got := s.OnMessage(msg, false)
+		assert.Equal(t, Response{}, got)
+		assert.Empty(t, det.CheckCalls())
+		assert.Len(t, det.IsApprovedUserCalls(), 2) // first checks From.ID (777000), then SenderChat.ID
+		assert.Equal(t, "777000", det.IsApprovedUserCalls()[0].UserID)
+		assert.Equal(t, "-1001261918100", det.IsApprovedUserCalls()[1].UserID)
+	})
+
 	t.Run("non-approved From.ID with SenderChat proceeds to spam check", func(t *testing.T) {
 		det := &mocks.DetectorMock{
 			CheckFunc: func(req spamcheck.Request) (bool, []spamcheck.Response) {

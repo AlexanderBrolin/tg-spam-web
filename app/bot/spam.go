@@ -77,10 +77,14 @@ func (s *SpamFilter) OnMessage(msg Message, checkOnly bool) (response Response) 
 		return Response{}
 	}
 
-	// check if the original sender is unconditionally approved before SenderChat override.
-	// this is needed for shared Telegram system IDs (e.g., 777000) where SenderChat.ID replaces
-	// From.ID for spam checking, making the standard approved user lookup in the detector ineffective.
+	// check if the original sender or channel is unconditionally approved.
+	// this handles shared Telegram system IDs (e.g., 777000) where SenderChat.ID replaces
+	// From.ID, and also handles direct channel approvals by SenderChat.ID.
+	// both checks run before any detector logic to ensure unconditional exclusion.
 	if s.IsApprovedUser(msg.From.ID) {
+		return Response{}
+	}
+	if msg.SenderChat.ID != 0 && s.IsApprovedUser(msg.SenderChat.ID) {
 		return Response{}
 	}
 
