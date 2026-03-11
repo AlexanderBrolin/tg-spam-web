@@ -953,9 +953,20 @@ func makeSpamLogger(ctx context.Context, gid string, wr io.Writer, dataDB *engin
 	}
 
 	logWr := events.SpamLoggerFunc(func(msg *bot.Message, response *bot.Response) {
+		// use channel identity when message is from a channel, so that spam records
+		// are correctly associated with the actual channel, not the shared system user (e.g., 777000)
+		userID := msg.From.ID
 		userName := msg.From.Username
+		displayName := msg.From.DisplayName
+		if msg.SenderChat.ID != 0 {
+			userID = msg.SenderChat.ID
+			userName = msg.SenderChat.UserName
+			if displayName == "" {
+				displayName = msg.SenderChat.UserName
+			}
+		}
 		if userName == "" {
-			userName = msg.From.DisplayName
+			userName = displayName
 		}
 		// write to log file
 		text := strings.ReplaceAll(msg.Text, "\n", " ")
@@ -969,9 +980,9 @@ func makeSpamLogger(ctx context.Context, gid string, wr io.Writer, dataDB *engin
 			Text        string `json:"text"`
 		}{
 			TimeStamp:   time.Now().In(time.Local).Format(time.RFC3339),
-			DisplayName: msg.From.DisplayName,
-			UserName:    msg.From.Username,
-			UserID:      msg.From.ID,
+			DisplayName: displayName,
+			UserName:    userName,
+			UserID:      userID,
 			Text:        text,
 		}
 		line, err := json.Marshal(&m)
@@ -986,7 +997,7 @@ func makeSpamLogger(ctx context.Context, gid string, wr io.Writer, dataDB *engin
 		// write to db store
 		rec := storage.DetectedSpamInfo{
 			Text:      text,
-			UserID:    msg.From.ID,
+			UserID:    userID,
 			UserName:  userName,
 			Timestamp: time.Now().In(time.Local),
 			GID:       gid,

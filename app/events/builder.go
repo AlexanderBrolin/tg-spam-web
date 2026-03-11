@@ -219,7 +219,14 @@ func (b *ChannelBuilder) makeSpamLogger(gid string) SpamLogger {
 		return SpamLoggerFunc(func(_ *bot.Message, _ *bot.Response) {})
 	}
 	return SpamLoggerFunc(func(msg *bot.Message, response *bot.Response) {
+		// use channel identity when message is from a channel, so that spam records
+		// are correctly associated with the actual channel, not the shared system user (e.g., 777000)
+		userID := msg.From.ID
 		userName := msg.From.Username
+		if msg.SenderChat.ID != 0 {
+			userID = msg.SenderChat.ID
+			userName = msg.SenderChat.UserName
+		}
 		if userName == "" {
 			userName = msg.From.DisplayName
 		}
@@ -229,7 +236,7 @@ func (b *ChannelBuilder) makeSpamLogger(gid string) SpamLogger {
 
 		rec := storage.DetectedSpamInfo{
 			Text:      text,
-			UserID:    msg.From.ID,
+			UserID:    userID,
 			UserName:  userName,
 			Timestamp: time.Now().In(time.Local),
 			GID:       gid,

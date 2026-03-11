@@ -142,15 +142,26 @@ func (m *ChannelManager) UnbanUser(gid string, userID int64) error {
 		return fmt.Errorf("can't parse group chat ID %q for channel %s: %w", rc.config.Group, gid, err)
 	}
 
-	cfg := tbapi.UnbanChatMemberConfig{
-		ChatMemberConfig: tbapi.ChatMemberConfig{
-			UserID:     userID,
-			ChatConfig: tbapi.ChatConfig{ChatID: chatID},
-		},
-		OnlyIfBanned: true,
-	}
-	if _, err := rc.config.TbAPI.Request(cfg); err != nil {
-		return fmt.Errorf("telegram unban failed for user %d in channel %s: %w", userID, gid, err)
+	if userID < 0 {
+		// channel ban — channels use BanChatSenderChat/UnbanChatSenderChat, not member bans
+		cfg := tbapi.UnbanChatSenderChatConfig{
+			ChatConfig:   tbapi.ChatConfig{ChatID: chatID},
+			SenderChatID: userID,
+		}
+		if _, err := rc.config.TbAPI.Request(cfg); err != nil {
+			return fmt.Errorf("telegram unban channel failed for %d in %s: %w", userID, gid, err)
+		}
+	} else {
+		cfg := tbapi.UnbanChatMemberConfig{
+			ChatMemberConfig: tbapi.ChatMemberConfig{
+				UserID:     userID,
+				ChatConfig: tbapi.ChatConfig{ChatID: chatID},
+			},
+			OnlyIfBanned: true,
+		}
+		if _, err := rc.config.TbAPI.Request(cfg); err != nil {
+			return fmt.Errorf("telegram unban failed for user %d in channel %s: %w", userID, gid, err)
+		}
 	}
 
 	log.Printf("[INFO] user %d unbanned via web admin in channel %s", userID, gid)
